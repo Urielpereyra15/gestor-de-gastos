@@ -252,6 +252,43 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
 .goal-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--sky),var(--sky-dark));transition:width .6s ease;}
 .goal-bar-fill.done{background:linear-gradient(90deg,#22C55E,#16A34A);}
 .goal-pct{font-size:10px;font-weight:800;color:var(--gray-400);margin-top:4px;text-align:right;}
+/* ── GRUPO ── */
+.group-balance-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--gray-100);}
+.group-balance-row:last-child{border-bottom:none;}
+.group-member-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;flex-shrink:0;}
+.group-member-name{font-size:13px;font-weight:700;flex:1;}
+.group-member-bal{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;}
+.group-member-bal.pos{color:var(--green);}
+.group-member-bal.neg{color:var(--red);}
+.fondo-resumen{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
+.fondo-stat{background:var(--gray-50);border-radius:10px;padding:10px 12px;text-align:center;border:1.5px solid var(--gray-200);}
+.fondo-label{font-size:10px;font-weight:800;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;}
+.fondo-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;margin-top:3px;}
+.fondo-mov-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--gray-100);}
+.fondo-mov-row:last-child{border-bottom:none;}
+.fondo-mov-icon{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.fondo-mov-info{flex:1;}
+.fondo-mov-name{font-size:12px;font-weight:700;}
+.fondo-mov-meta{font-size:10px;color:var(--gray-400);font-weight:600;}
+.fondo-mov-amount{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
+.fondo-mov-del{width:24px;height:24px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--gray-400);border-radius:6px;flex-shrink:0;}
+.fondo-mov-del:hover{background:#FEE2E2;color:var(--red);}
+.shop-item-row{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid var(--gray-100);transition:opacity .2s;}
+.shop-item-row:last-child{border-bottom:none;}
+.shop-item-row.checked{opacity:.4;}
+.shop-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--gray-200);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-size:12px;}
+.shop-check.done{background:var(--green);border-color:var(--green);color:white;}
+.shop-name{font-size:13px;font-weight:700;flex:1;}
+.shop-qty{font-size:11px;color:var(--gray-400);font-weight:600;}
+.shop-price{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:var(--gray-400);}
+.shop-del{width:24px;height:24px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--gray-400);border-radius:6px;flex-shrink:0;}
+.shop-del:hover{background:#FEE2E2;color:var(--red);}
+.activity-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--gray-100);}
+.activity-row:last-child{border-bottom:none;}
+.activity-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.activity-info{flex:1;}
+.activity-text{font-size:12px;font-weight:700;}
+.activity-time{font-size:10px;color:var(--gray-400);font-weight:600;}
 /* ── PORTAFOLIOS ── */
 .portfolio-item{border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;}
 .portfolio-head{display:flex;align-items:center;gap:10px;padding:13px 14px;cursor:pointer;transition:background .15s;}
@@ -479,6 +516,60 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
     </div>
   </div>
 
+  <!-- GRUPO -->
+  <div class="section" id="sec-grupo">
+
+    <!-- Balance neto -->
+    <div class="card">
+      <div class="tx-header"><div class="tx-title">Balance neto del grupo</div></div>
+      <div id="groupBalance"></div>
+    </div>
+
+    <!-- Fondo Común -->
+    <div class="card">
+      <div class="tx-header">
+        <div class="tx-title">Fondo común</div>
+        <div class="ver-todo" onclick="openFondoModal()">+ Movimiento</div>
+      </div>
+      <div id="fondoResumen"></div>
+      <div id="fondoList"></div>
+    </div>
+
+    <!-- Presupuesto grupal -->
+    <div class="card">
+      <div class="tx-header">
+        <div class="tx-title">Presupuesto grupal</div>
+        <div class="ver-todo" onclick="openGroupBudgetModal()">+ Nuevo</div>
+      </div>
+      <div id="groupBudgetList"></div>
+    </div>
+
+    <!-- Metas grupales -->
+    <div class="card">
+      <div class="tx-header">
+        <div class="tx-title">Metas grupales</div>
+        <div class="ver-todo" onclick="openGroupGoalModal()">+ Nueva</div>
+      </div>
+      <div id="groupGoalList"></div>
+    </div>
+
+    <!-- Lista de compras -->
+    <div class="card">
+      <div class="tx-header">
+        <div class="tx-title">Lista de compras</div>
+        <div class="ver-todo" onclick="openShoppingModal()">+ Ítem</div>
+      </div>
+      <div id="shoppingList"></div>
+    </div>
+
+    <!-- Actividad reciente -->
+    <div class="card">
+      <div class="tx-header"><div class="tx-title">Actividad reciente</div></div>
+      <div id="groupActivity"></div>
+    </div>
+
+  </div>
+
 </div>
 
 <button class="fab" onclick="openModal()">＋</button>
@@ -486,8 +577,8 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
 <nav class="bottom-nav">
   <button class="nav-btn active" id="nav-inicio" onclick="goTo('inicio')">🏠<span>Inicio</span></button>
   <button class="nav-btn" id="nav-movimientos" onclick="goTo('movimientos')">📋<span>Movim.</span></button>
-  <div style="width:58px"></div>
   <button class="nav-btn" id="nav-analisis" onclick="goTo('analisis')">📊<span>Análisis</span></button>
+  <button class="nav-btn" id="nav-grupo" onclick="goTo('grupo')">👥<span>Grupo</span></button>
   <button class="nav-btn" id="nav-mas" onclick="goTo('mas')">⚙️<span>Config.</span></button>
 </nav>
 
@@ -749,6 +840,85 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
   </div>
 </div>
 
+<!-- MODAL FONDO COMÚN -->
+<div class="modal-overlay" id="fondoModalOverlay" onclick="if(event.target.id==='fondoModalOverlay')closeFondoModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title">Movimiento del fondo</div>
+      <button class="modal-close" onclick="closeFondoModal()">✕</button>
+    </div>
+    <div class="modal-row">
+      <button class="modal-btn sel-ingreso" id="btnFondoIngreso" onclick="setFondoType('ingreso')">💰 Aporte</button>
+      <button class="modal-btn" id="btnFondoGasto" onclick="setFondoType('gasto')">💸 Egreso</button>
+    </div>
+    <label class="modal-label">Miembro</label>
+    <input class="modal-input" id="fondoMember" type="text" placeholder="Ej: Juan, Mamá, Yo">
+    <label class="modal-label">Descripción</label>
+    <input class="modal-input" id="fondoDesc" type="text" placeholder="Ej: Cuota mensual, Supermercado">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="modal-label">Monto</label><input class="modal-input" id="fondoAmount" type="number" placeholder="0,00" min="0" step="0.01"></div>
+      <div><label class="modal-label">Fecha</label><input class="modal-input" id="fondoDate" type="date"></div>
+    </div>
+    <button class="modal-submit" onclick="saveFondo()">Guardar</button>
+  </div>
+</div>
+
+<!-- MODAL PRESUPUESTO GRUPAL -->
+<div class="modal-overlay" id="groupBudgetModalOverlay" onclick="if(event.target.id==='groupBudgetModalOverlay')closeGroupBudgetModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title" id="groupBudgetModalTitle">Nuevo presupuesto grupal</div>
+      <button class="modal-close" onclick="closeGroupBudgetModal()">✕</button>
+    </div>
+    <label class="modal-label">Nombre</label>
+    <input class="modal-input" id="gbName" type="text" placeholder="Ej: Supermercado, Servicios">
+    <label class="modal-label">Límite mensual</label>
+    <input class="modal-input" id="gbLimit" type="number" placeholder="0,00" min="0" step="0.01">
+    <button class="modal-submit" id="gbSubmitBtn" onclick="saveGroupBudget()">Guardar</button>
+    <button id="gbDeleteBtn" style="display:none;width:100%;margin-top:8px;padding:12px;border-radius:16px;background:#FEE2E2;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;" onclick="deleteGroupBudget()">🗑 Eliminar</button>
+  </div>
+</div>
+
+<!-- MODAL META GRUPAL -->
+<div class="modal-overlay" id="groupGoalModalOverlay" onclick="if(event.target.id==='groupGoalModalOverlay')closeGroupGoalModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title" id="groupGoalModalTitle">Nueva meta grupal</div>
+      <button class="modal-close" onclick="closeGroupGoalModal()">✕</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="ggEmojiOptions"></div>
+    <label class="modal-label">Nombre</label>
+    <input class="modal-input" id="ggName" type="text" placeholder="Ej: Vacaciones, TV nueva">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="modal-label">Meta ($)</label><input class="modal-input" id="ggTarget" type="number" placeholder="0,00" min="0" step="0.01"></div>
+      <div><label class="modal-label">Ahorrado ($)</label><input class="modal-input" id="ggSaved" type="number" placeholder="0,00" min="0" step="0.01"></div>
+    </div>
+    <label class="modal-label">Plazo</label>
+    <input class="modal-input" id="ggDeadline" type="date">
+    <button class="modal-submit" id="ggSubmitBtn" onclick="saveGroupGoal()">Guardar</button>
+    <button id="ggDeleteBtn" style="display:none;width:100%;margin-top:8px;padding:12px;border-radius:16px;background:#FEE2E2;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;" onclick="deleteGroupGoal()">🗑 Eliminar</button>
+  </div>
+</div>
+
+<!-- MODAL ÍTEM COMPRAS -->
+<div class="modal-overlay" id="shoppingModalOverlay" onclick="if(event.target.id==='shoppingModalOverlay')closeShoppingModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title">Agregar ítem</div>
+      <button class="modal-close" onclick="closeShoppingModal()">✕</button>
+    </div>
+    <label class="modal-label">Producto</label>
+    <input class="modal-input" id="shopItem" type="text" placeholder="Ej: Leche, Detergente">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="modal-label">Cantidad</label><input class="modal-input" id="shopQty" type="text" placeholder="Ej: 2, 1kg"></div>
+      <div><label class="modal-label">Precio est. ($)</label><input class="modal-input" id="shopPrice" type="number" placeholder="0,00" min="0" step="0.01"></div>
+    </div>
+    <label class="modal-label">Agregado por</label>
+    <input class="modal-input" id="shopBy" type="text" placeholder="Ej: Mamá, Yo">
+    <button class="modal-submit" onclick="saveShopItem()">Agregar</button>
+  </div>
+</div>
+
 <!-- EMOJI PICKER -->
 <div class="floating-overlay" id="emojiOverlay">
   <div class="floating-box">
@@ -914,11 +1084,12 @@ function goTo(s){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('sec-'+s).classList.add('active');
   document.getElementById('nav-'+s).classList.add('active');
-  const showAccs = s !== 'mas';
+  const showAccs = s !== 'mas' && s !== 'grupo';
   document.getElementById('accountsScroll').style.display = showAccs ? 'flex' : 'none';
   document.getElementById('accEditBar').style.display = showAccs ? 'flex' : 'none';
   if(s==='analisis'){renderLineChart();renderBudgets();renderPortfolios();renderGoals();}
   if(s==='movimientos'){renderAllTx();populateFilterCat();renderMovBar();}
+  if(s==='grupo'){renderGrupo();}
   if(s==='mas'){
     // cerrar acordeones al entrar a config
     ['accCats','accPagos'].forEach(id=>{
@@ -1972,6 +2143,307 @@ function deleteGoal(){
   goals.splice(currentGoalIdx,1);
   localStorage.setItem('fp_goals',JSON.stringify(goals));
   closeGoalModal();renderGoals();
+}
+
+/* ── GRUPO ── */
+let fondoMovs=JSON.parse(localStorage.getItem('fp_fondo')||'[]');
+let groupBudgets=JSON.parse(localStorage.getItem('fp_gbud')||'[]');
+let groupGoals=JSON.parse(localStorage.getItem('fp_ggoals')||'[]');
+let shoppingItems=JSON.parse(localStorage.getItem('fp_shopping')||'[]');
+let currentGbIdx=null, currentGgIdx=null, currentFondoType='ingreso';
+const GG_EMOJIS=['🎯','🏖️','🚗','🏠','💻','✈️','🎓','💰','🛒','🎸'];
+let currentGgEmoji='🎯';
+const MEMBER_COLORS=['#4F79F6','#A78BFA','#F4A261','#34D399','#F87171','#14B8A6','#F472B6','#FBBF24'];
+
+function renderGrupo(){
+  renderGroupBalance();
+  renderFondo();
+  renderGroupBudgets();
+  renderGroupGoals();
+  renderShopping();
+  renderGroupActivity();
+}
+
+/* Balance neto */
+function renderGroupBalance(){
+  const members={};
+  fondoMovs.forEach(m=>{
+    if(!members[m.member]) members[m.member]=0;
+    if(m.type==='ingreso') members[m.member]+=m.amount;
+    else members[m.member]-=m.amount;
+  });
+  const el=document.getElementById('groupBalance');
+  const keys=Object.keys(members);
+  if(!keys.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos aún.</div>';return;}
+  el.innerHTML=keys.map((k,i)=>{
+    const bal=members[k];
+    const color=MEMBER_COLORS[i%MEMBER_COLORS.length];
+    return `<div class="group-balance-row">
+      <div class="group-member-avatar" style="background:${color}">${k.slice(0,2).toUpperCase()}</div>
+      <div class="group-member-name">${k}</div>
+      <div class="group-member-bal ${bal>=0?'pos':'neg'}">${bal>=0?'+':'-'}$${fmtInv(Math.abs(bal))}</div>
+    </div>`;
+  }).join('');
+}
+
+/* Fondo Común */
+function setFondoType(t){
+  currentFondoType=t;
+  document.getElementById('btnFondoIngreso').className='modal-btn'+(t==='ingreso'?' sel-ingreso':'');
+  document.getElementById('btnFondoGasto').className='modal-btn'+(t==='gasto'?' sel-gasto':'');
+}
+function openFondoModal(){
+  setFondoType('ingreso');
+  document.getElementById('fondoMember').value='';
+  document.getElementById('fondoDesc').value='';
+  document.getElementById('fondoAmount').value='';
+  document.getElementById('fondoDate').value=new Date().toISOString().split('T')[0];
+  document.getElementById('fondoModalOverlay').classList.add('open');
+}
+function closeFondoModal(){document.getElementById('fondoModalOverlay').classList.remove('open');}
+function saveFondo(){
+  const member=document.getElementById('fondoMember').value.trim();
+  const desc=document.getElementById('fondoDesc').value.trim();
+  const amount=parseFloat(document.getElementById('fondoAmount').value);
+  const date=document.getElementById('fondoDate').value;
+  if(!member||!amount||!date){alert('Completá todos los campos');return;}
+  fondoMovs.unshift({type:currentFondoType,member,desc,amount,date,ts:Date.now()});
+  localStorage.setItem('fp_fondo',JSON.stringify(fondoMovs));
+  closeFondoModal();renderGrupo();
+}
+function renderFondo(){
+  const total=fondoMovs.reduce((s,m)=>m.type==='ingreso'?s+m.amount:s-m.amount,0);
+  const aportes=fondoMovs.filter(m=>m.type==='ingreso').reduce((s,m)=>s+m.amount,0);
+  const egresos=fondoMovs.filter(m=>m.type==='gasto').reduce((s,m)=>s+m.amount,0);
+  document.getElementById('fondoResumen').innerHTML=`<div class="fondo-resumen">
+    <div class="fondo-stat"><div class="fondo-label">Saldo</div><div class="fondo-val" style="color:${total>=0?'var(--green)':'var(--red)'}">$${fmtInv(Math.abs(total))}</div></div>
+    <div class="fondo-stat"><div class="fondo-label">Aportes</div><div class="fondo-val" style="color:var(--green)">$${fmtInv(aportes)}</div></div>
+    <div class="fondo-stat"><div class="fondo-label">Egresos</div><div class="fondo-val" style="color:var(--red)">$${fmtInv(egresos)}</div></div>
+  </div>`;
+  const el=document.getElementById('fondoList');
+  if(!fondoMovs.length){el.innerHTML='<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos.</div>';return;}
+  el.innerHTML=fondoMovs.slice(0,6).map((m,i)=>`
+    <div class="fondo-mov-row">
+      <div class="fondo-mov-icon" style="background:${m.type==='ingreso'?'#DCFCE7':'#FEE2E2'}">${m.type==='ingreso'?'💰':'💸'}</div>
+      <div class="fondo-mov-info">
+        <div class="fondo-mov-name">${m.member}${m.desc?' · '+m.desc:''}</div>
+        <div class="fondo-mov-meta">${m.date}</div>
+      </div>
+      <div class="fondo-mov-amount" style="color:${m.type==='ingreso'?'var(--green)':'var(--red)'}">
+        ${m.type==='ingreso'?'+':'-'}$${fmtInv(m.amount)}
+      </div>
+      <button class="fondo-mov-del" onclick="deleteFondoMov(${i})">✕</button>
+    </div>`).join('');
+}
+function deleteFondoMov(i){
+  if(!confirm('¿Eliminar este movimiento?')) return;
+  fondoMovs.splice(i,1);
+  localStorage.setItem('fp_fondo',JSON.stringify(fondoMovs));
+  renderGrupo();
+}
+
+/* Presupuesto grupal */
+function openGroupBudgetModal(){
+  currentGbIdx=null;
+  document.getElementById('groupBudgetModalTitle').textContent='Nuevo presupuesto grupal';
+  document.getElementById('gbSubmitBtn').textContent='Guardar';
+  document.getElementById('gbName').value='';
+  document.getElementById('gbLimit').value='';
+  document.getElementById('gbDeleteBtn').style.display='none';
+  document.getElementById('groupBudgetModalOverlay').classList.add('open');
+}
+function openEditGroupBudget(i){
+  currentGbIdx=i;
+  document.getElementById('groupBudgetModalTitle').textContent='Editar presupuesto';
+  document.getElementById('gbSubmitBtn').textContent='Guardar cambios';
+  document.getElementById('gbName').value=groupBudgets[i].name;
+  document.getElementById('gbLimit').value=groupBudgets[i].limit;
+  document.getElementById('gbDeleteBtn').style.display='block';
+  document.getElementById('groupBudgetModalOverlay').classList.add('open');
+}
+function closeGroupBudgetModal(){document.getElementById('groupBudgetModalOverlay').classList.remove('open');}
+function saveGroupBudget(){
+  const name=document.getElementById('gbName').value.trim();
+  const limit=parseFloat(document.getElementById('gbLimit').value);
+  if(!name||!limit){alert('Completá nombre y límite');return;}
+  if(currentGbIdx===null) groupBudgets.push({name,limit,spent:0});
+  else{groupBudgets[currentGbIdx].name=name;groupBudgets[currentGbIdx].limit=limit;}
+  localStorage.setItem('fp_gbud',JSON.stringify(groupBudgets));
+  closeGroupBudgetModal();renderGroupBudgets();
+}
+function deleteGroupBudget(){
+  if(!confirm('¿Eliminar este presupuesto?')) return;
+  groupBudgets.splice(currentGbIdx,1);
+  localStorage.setItem('fp_gbud',JSON.stringify(groupBudgets));
+  closeGroupBudgetModal();renderGroupBudgets();
+}
+function renderGroupBudgets(){
+  const el=document.getElementById('groupBudgetList');
+  if(!groupBudgets.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin presupuestos grupales.</div>';return;}
+  el.innerHTML=groupBudgets.map((b,i)=>{
+    // usar egresos del fondo que coincidan con el nombre
+    const spent=fondoMovs.filter(m=>m.type==='gasto'&&(m.desc||'').toLowerCase().includes(b.name.toLowerCase())).reduce((s,m)=>s+m.amount,0);
+    const pct=Math.min(100,b.limit>0?Math.round(spent/b.limit*100):0);
+    const color=pct>=90?'#EF4444':pct>=70?'#FBBF24':'#22C55E';
+    return `<div class="budget-item" style="margin-bottom:12px;cursor:pointer" onclick="openEditGroupBudget(${i})">
+      <div class="budget-top"><div class="budget-name">${b.name}</div><div class="budget-vals">${fmt(spent)} / ${fmt(b.limit)}</div></div>
+      <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+/* Metas grupales */
+function openGroupGoalModal(){
+  currentGgIdx=null;
+  currentGgEmoji='🎯';
+  document.getElementById('groupGoalModalTitle').textContent='Nueva meta grupal';
+  document.getElementById('ggSubmitBtn').textContent='Guardar';
+  document.getElementById('ggName').value='';
+  document.getElementById('ggTarget').value='';
+  document.getElementById('ggSaved').value='';
+  document.getElementById('ggDeadline').value='';
+  document.getElementById('ggDeleteBtn').style.display='none';
+  renderGgEmojis();
+  document.getElementById('groupGoalModalOverlay').classList.add('open');
+}
+function openEditGroupGoal(i){
+  currentGgIdx=i;
+  currentGgEmoji=groupGoals[i].emoji;
+  document.getElementById('groupGoalModalTitle').textContent='Editar meta grupal';
+  document.getElementById('ggSubmitBtn').textContent='Guardar cambios';
+  document.getElementById('ggName').value=groupGoals[i].name;
+  document.getElementById('ggTarget').value=groupGoals[i].target;
+  document.getElementById('ggSaved').value=groupGoals[i].saved;
+  document.getElementById('ggDeadline').value=groupGoals[i].deadline||'';
+  document.getElementById('ggDeleteBtn').style.display='block';
+  renderGgEmojis();
+  document.getElementById('groupGoalModalOverlay').classList.add('open');
+}
+function renderGgEmojis(){
+  document.getElementById('ggEmojiOptions').innerHTML=GG_EMOJIS.map(e=>
+    `<span style="font-size:22px;padding:5px 8px;border-radius:8px;cursor:pointer;${e===currentGgEmoji?'background:var(--sky-light);outline:2px solid var(--sky)':''}" onclick="pickGgEmoji('${e}')">${e}</span>`
+  ).join('');
+}
+function pickGgEmoji(e){currentGgEmoji=e;renderGgEmojis();}
+function closeGroupGoalModal(){document.getElementById('groupGoalModalOverlay').classList.remove('open');}
+function saveGroupGoal(){
+  const name=document.getElementById('ggName').value.trim();
+  const target=parseFloat(document.getElementById('ggTarget').value);
+  const saved=parseFloat(document.getElementById('ggSaved').value)||0;
+  const deadline=document.getElementById('ggDeadline').value;
+  if(!name||!target){alert('Completá nombre y meta');return;}
+  const obj={name,target,saved,deadline,emoji:currentGgEmoji};
+  if(currentGgIdx===null) groupGoals.push(obj);
+  else groupGoals[currentGgIdx]=obj;
+  localStorage.setItem('fp_ggoals',JSON.stringify(groupGoals));
+  closeGroupGoalModal();renderGroupGoals();
+}
+function deleteGroupGoal(){
+  if(!confirm('¿Eliminar esta meta?')) return;
+  groupGoals.splice(currentGgIdx,1);
+  localStorage.setItem('fp_ggoals',JSON.stringify(groupGoals));
+  closeGroupGoalModal();renderGroupGoals();
+}
+function renderGroupGoals(){
+  const el=document.getElementById('groupGoalList');
+  if(!groupGoals.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin metas grupales.</div>';return;}
+  el.innerHTML=groupGoals.map((g,i)=>{
+    const pct=g.target>0?Math.min(100,Math.round(g.saved/g.target*100)):0;
+    const done=pct>=100;
+    const deadline=g.deadline?new Date(g.deadline+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}):'Sin plazo';
+    return `<div class="goal-item">
+      <div class="goal-header">
+        <div class="goal-emoji">${g.emoji}</div>
+        <div class="goal-info"><div class="goal-name">${g.name}${done?' ✅':''}</div><div class="goal-deadline">📅 ${deadline}</div></div>
+        <button class="goal-edit" onclick="openEditGroupGoal(${i})">✏️</button>
+      </div>
+      <div class="goal-amounts">
+        <div class="goal-saved">$${fmtInv(g.saved)} ahorrado</div>
+        <div class="goal-target">Meta: $${fmtInv(g.target)}</div>
+      </div>
+      <div class="goal-bar-bg"><div class="goal-bar-fill ${done?'done':''}" style="width:${pct}%"></div></div>
+      <div class="goal-pct">${pct}%${done?' · ¡Meta alcanzada! 🎉':''}</div>
+    </div>`;
+  }).join('');
+}
+
+/* Lista de compras */
+function openShoppingModal(){
+  document.getElementById('shopItem').value='';
+  document.getElementById('shopQty').value='';
+  document.getElementById('shopPrice').value='';
+  document.getElementById('shopBy').value='';
+  document.getElementById('shoppingModalOverlay').classList.add('open');
+}
+function closeShoppingModal(){document.getElementById('shoppingModalOverlay').classList.remove('open');}
+function saveShopItem(){
+  const name=document.getElementById('shopItem').value.trim();
+  if(!name){alert('Ingresá un producto');return;}
+  shoppingItems.push({
+    name,
+    qty:document.getElementById('shopQty').value.trim(),
+    price:parseFloat(document.getElementById('shopPrice').value)||0,
+    by:document.getElementById('shopBy').value.trim(),
+    done:false,
+    ts:Date.now()
+  });
+  localStorage.setItem('fp_shopping',JSON.stringify(shoppingItems));
+  closeShoppingModal();renderShopping();
+}
+function toggleShopItem(i){
+  shoppingItems[i].done=!shoppingItems[i].done;
+  localStorage.setItem('fp_shopping',JSON.stringify(shoppingItems));
+  renderShopping();
+}
+function deleteShopItem(i){
+  shoppingItems.splice(i,1);
+  localStorage.setItem('fp_shopping',JSON.stringify(shoppingItems));
+  renderShopping();
+}
+function renderShopping(){
+  const el=document.getElementById('shoppingList');
+  if(!shoppingItems.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Lista vacía.</div>';return;}
+  const pending=shoppingItems.filter(i=>!i.done);
+  const done=shoppingItems.filter(i=>i.done);
+  const totalEst=pending.reduce((s,i)=>s+i.price,0);
+  let html='';
+  if(totalEst>0) html+=`<div style="font-size:11px;font-weight:700;color:var(--gray-400);margin-bottom:8px">Total estimado: $${fmtInv(totalEst)}</div>`;
+  html+=[...pending,...done].map((item,_)=>{
+    const realIdx=shoppingItems.indexOf(item);
+    return `<div class="shop-item-row ${item.done?'checked':''}">
+      <div class="shop-check ${item.done?'done':''}" onclick="toggleShopItem(${realIdx})">${item.done?'✓':''}</div>
+      <div style="flex:1">
+        <div class="shop-name" style="${item.done?'text-decoration:line-through':''}">${item.name}${item.qty?' ('+item.qty+')':''}</div>
+        <div class="shop-qty">${item.by?'Por: '+item.by:''}${item.price?` · $${fmtInv(item.price)}`:''}</div>
+      </div>
+      <button class="shop-del" onclick="deleteShopItem(${realIdx})">✕</button>
+    </div>`;
+  }).join('');
+  el.innerHTML=html;
+}
+
+/* Actividad reciente */
+function renderGroupActivity(){
+  const el=document.getElementById('groupActivity');
+  // combinar fondoMovs + groupGoal changes
+  const acts=fondoMovs.slice(0,10).map(m=>({
+    text:`${m.member} ${m.type==='ingreso'?'aportó':'retiró'} $${fmtInv(m.amount)}${m.desc?' · '+m.desc:''}`,
+    color:m.type==='ingreso'?'#22C55E':'#EF4444',
+    date:m.date
+  }));
+  shoppingItems.slice(0,5).forEach(s=>{
+    acts.push({text:`${s.by||'Alguien'} agregó "${s.name}" a la lista`,color:'#3BAAFF',date:new Date(s.ts).toISOString().split('T')[0]});
+  });
+  acts.sort((a,b)=>b.date.localeCompare(a.date));
+  if(!acts.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin actividad aún.</div>';return;}
+  el.innerHTML=acts.slice(0,8).map(a=>`
+    <div class="activity-row">
+      <div class="activity-dot" style="background:${a.color}"></div>
+      <div class="activity-info">
+        <div class="activity-text">${a.text}</div>
+        <div class="activity-time">${a.date}</div>
+      </div>
+    </div>`).join('');
 }
 
 /* ── PWA ── */
