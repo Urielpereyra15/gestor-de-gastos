@@ -17,7 +17,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, addDoc, deleteDoc, collection, query, where, getDocs, onSnapshot, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAoqy82RAz9AbkOGgdio81__5laxJJ0sfw",
@@ -33,19 +33,20 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Exponer globalmente para el resto del código
 window._fbAuth = auth;
 window._fbDb = db;
-window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, doc, setDoc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, limit };
+window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, doc, setDoc, getDoc, addDoc, deleteDoc, collection, query, where, getDocs, onSnapshot, orderBy, limit };
 
 onAuthStateChanged(auth, async (user) => {
   if(user){
     window._currentUser = user;
-    // cargar perfil desde Firestore
     const snap = await getDoc(doc(db,'users', user.uid));
     if(snap.exists()) window._currentProfile = snap.data();
     else window._currentProfile = {nombre: user.displayName||'', email: user.email};
     updateAuthUI();
+    updateNotifBadge();
+    // sincronizar transacciones personales a Firebase
+    syncLocalTxToFirebase();
     if(document.getElementById('sec-grupo').classList.contains('active')) renderGrupo();
   } else {
     window._currentUser = null;
@@ -1340,6 +1341,7 @@ function addTransaction(){
   }
   transactions.unshift(tx);
   localStorage.setItem('fp_tx',JSON.stringify(transactions));
+  if(window._currentUser) syncLocalTxToFirebase();
   closeModal();refreshAll();
 }
 
@@ -2315,19 +2317,41 @@ let currentGgEmoji='🎯';
 const MEMBER_COLORS=['#4F79F6','#A78BFA','#F4A261','#34D399','#F87171','#14B8A6','#F472B6','#FBBF24'];
 
 function renderGrupo(){
+  if(!window._currentUser||!window._currentProfile?.groupId){
+    renderMembers();
+    ['groupBalance','fondoList','groupBudgetList','groupGoalList','shoppingList','groupActivity'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.innerHTML='<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px;font-weight:700">Uníte a un grupo para ver esto.</div>';
+    });
+    document.getElementById('fondoResumen').innerHTML='';
+    return;
+  }
   renderMembers();
-  renderGroupBalance();
-  renderFondo();
-  renderGroupBudgets();
-  renderGroupGoals();
-  renderShopping();
-  renderGroupActivity();
+  loadGroupData();
 }
 
-/* Balance neto */
+let _groupCache={fondoMovs:[],groupBudgets:[],groupGoals:[],shoppingItems:[]};
+
+async function loadGroupData(){
+  const groupId=window._currentProfile?.groupId;
+  if(!groupId) return;
+  const {_fbDb,_fbFns}=window;
+  try{
+    const fondoSnap=await _fbFns.getDocs(_fbFns.query(_fbFns.collection(_fbDb,'groups',groupId,'fondo'),_fbFns.orderBy('ts','desc')));
+    _groupCache.fondoMovs=[];fondoSnap.forEach(d=>_groupCache.fondoMovs.push({id:d.id,...d.data()}));
+    const budSnap=await _fbFns.getDocs(_fbFns.collection(_fbDb,'groups',groupId,'budgets'));
+    _groupCache.groupBudgets=[];budSnap.forEach(d=>_groupCache.groupBudgets.push({id:d.id,...d.data()}));
+    const goalSnap=await _fbFns.getDocs(_fbFns.collection(_fbDb,'groups',groupId,'goals'));
+    _groupCache.groupGoals=[];goalSnap.forEach(d=>_groupCache.groupGoals.push({id:d.id,...d.data()}));
+    const shopSnap=await _fbFns.getDocs(_fbFns.query(_fbFns.collection(_fbDb,'groups',groupId,'shopping'),_fbFns.orderBy('ts','asc')));
+    _groupCache.shoppingItems=[];shopSnap.forEach(d=>_groupCache.shoppingItems.push({id:d.id,...d.data()}));
+    renderGroupBalance();renderFondo();renderGroupBudgets();renderGroupGoals();renderShopping();renderGroupActivity();
+  }catch(e){console.error('Error cargando datos del grupo:',e);}
+}
+
 function renderGroupBalance(){
   const members={};
-  fondoMovs.forEach(m=>{
+  _groupCache.fondoMovs.forEach(m=>{
     if(!members[m.member]) members[m.member]=0;
     if(m.type==='ingreso') members[m.member]+=m.amount;
     else members[m.member]-=m.amount;
@@ -2336,53 +2360,49 @@ function renderGroupBalance(){
   const keys=Object.keys(members);
   if(!keys.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos aún.</div>';return;}
   el.innerHTML=keys.map((k,i)=>{
-    const bal=members[k];
-    const color=MEMBER_COLORS[i%MEMBER_COLORS.length];
-    return `<div class="group-balance-row">
-      <div class="group-member-avatar" style="background:${color}">${k.slice(0,2).toUpperCase()}</div>
-      <div class="group-member-name">${k}</div>
-      <div class="group-member-bal ${bal>=0?'pos':'neg'}">${bal>=0?'+':'-'}$${fmtInv(Math.abs(bal))}</div>
-    </div>`;
+    const bal=members[k];const color=MEMBER_COLORS[i%MEMBER_COLORS.length];
+    return `<div class="group-balance-row"><div class="group-member-avatar" style="background:${color}">${k.slice(0,2).toUpperCase()}</div><div class="group-member-name">${k}</div><div class="group-member-bal ${bal>=0?'pos':'neg'}">${bal>=0?'+':'-'}$${fmtInv(Math.abs(bal))}</div></div>`;
   }).join('');
 }
 
-/* Fondo Común */
 function setFondoType(t){
   currentFondoType=t;
   document.getElementById('btnFondoIngreso').className='modal-btn'+(t==='ingreso'?' sel-ingreso':'');
   document.getElementById('btnFondoGasto').className='modal-btn'+(t==='gasto'?' sel-gasto':'');
 }
 function openFondoModal(){
+  if(!window._currentUser){alert('Iniciá sesión primero');return;}
+  if(!window._currentProfile?.groupId){alert('Uníte a un grupo primero');return;}
   setFondoType('ingreso');
-  document.getElementById('fondoMember').value='';
-  document.getElementById('fondoDesc').value='';
-  document.getElementById('fondoAmount').value='';
+  const p=window._currentProfile;
+  document.getElementById('fondoMember').value=(p.nombre||'')+' '+(p.apellido||'');
+  document.getElementById('fondoDesc').value='';document.getElementById('fondoAmount').value='';
   document.getElementById('fondoDate').value=new Date().toISOString().split('T')[0];
   document.getElementById('fondoModalOverlay').classList.add('open');
 }
 function closeFondoModal(){document.getElementById('fondoModalOverlay').classList.remove('open');}
-function saveFondo(){
+async function saveFondo(){
   const member=document.getElementById('fondoMember').value.trim();
   const desc=document.getElementById('fondoDesc').value.trim();
   const amount=parseFloat(document.getElementById('fondoAmount').value);
   const date=document.getElementById('fondoDate').value;
   if(!member||!amount||!date){alert('Completá todos los campos');return;}
-  fondoMovs.unshift({type:currentFondoType,member,desc,amount,date,ts:Date.now()});
-  localStorage.setItem('fp_fondo',JSON.stringify(fondoMovs));
-  closeFondoModal();renderGrupo();
+  const groupId=window._currentProfile?.groupId;
+  try{
+    const {_fbDb,_fbFns}=window;
+    await _fbFns.addDoc(_fbFns.collection(_fbDb,'groups',groupId,'fondo'),{type:currentFondoType,member,desc,amount,date,ts:Date.now(),uid:window._currentUser.uid});
+    closeFondoModal();await loadGroupData();
+  }catch(e){alert('Error: '+e.message);}
 }
 function renderFondo(){
-  const total=fondoMovs.reduce((s,m)=>m.type==='ingreso'?s+m.amount:s-m.amount,0);
-  const aportes=fondoMovs.filter(m=>m.type==='ingreso').reduce((s,m)=>s+m.amount,0);
-  const egresos=fondoMovs.filter(m=>m.type==='gasto').reduce((s,m)=>s+m.amount,0);
-  document.getElementById('fondoResumen').innerHTML=`<div class="fondo-resumen">
-    <div class="fondo-stat"><div class="fondo-label">Saldo</div><div class="fondo-val" style="color:${total>=0?'var(--green)':'var(--red)'}">$${fmtInv(Math.abs(total))}</div></div>
-    <div class="fondo-stat"><div class="fondo-label">Aportes</div><div class="fondo-val" style="color:var(--green)">$${fmtInv(aportes)}</div></div>
-    <div class="fondo-stat"><div class="fondo-label">Egresos</div><div class="fondo-val" style="color:var(--red)">$${fmtInv(egresos)}</div></div>
-  </div>`;
+  const movs=_groupCache.fondoMovs;
+  const total=movs.reduce((s,m)=>m.type==='ingreso'?s+m.amount:s-m.amount,0);
+  const aportes=movs.filter(m=>m.type==='ingreso').reduce((s,m)=>s+m.amount,0);
+  const egresos=movs.filter(m=>m.type==='gasto').reduce((s,m)=>s+m.amount,0);
+  document.getElementById('fondoResumen').innerHTML=`<div class="fondo-resumen"><div class="fondo-stat"><div class="fondo-label">Saldo</div><div class="fondo-val" style="color:${total>=0?'var(--green)':'var(--red)'}">$${fmtInv(Math.abs(total))}</div></div><div class="fondo-stat"><div class="fondo-label">Aportes</div><div class="fondo-val" style="color:var(--green)">$${fmtInv(aportes)}</div></div><div class="fondo-stat"><div class="fondo-label">Egresos</div><div class="fondo-val" style="color:var(--red)">$${fmtInv(egresos)}</div></div></div>`;
   const el=document.getElementById('fondoList');
-  if(!fondoMovs.length){el.innerHTML='<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos.</div>';return;}
-  el.innerHTML=fondoMovs.slice(0,6).map((m,i)=>`
+  if(!movs.length){el.innerHTML='<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos.</div>';return;}
+  el.innerHTML=movs.slice(0,6).map(m=>`
     <div class="fondo-mov-row">
       <div class="fondo-mov-icon" style="background:${m.type==='ingreso'?'#DCFCE7':'#FEE2E2'}">${m.type==='ingreso'?'💰':'💸'}</div>
       <div class="fondo-mov-info">
@@ -2392,219 +2412,148 @@ function renderFondo(){
       <div class="fondo-mov-amount" style="color:${m.type==='ingreso'?'var(--green)':'var(--red)'}">
         ${m.type==='ingreso'?'+':'-'}$${fmtInv(m.amount)}
       </div>
-      <button class="fondo-mov-del" onclick="deleteFondoMov(${i})">✕</button>
+      <button class="fondo-mov-del" onclick="deleteFondoMov('${m.id}')">✕</button>
     </div>`).join('');
 }
-function deleteFondoMov(i){
+async function deleteFondoMov(docId){
   if(!confirm('¿Eliminar este movimiento?')) return;
-  fondoMovs.splice(i,1);
-  localStorage.setItem('fp_fondo',JSON.stringify(fondoMovs));
-  renderGrupo();
+  const groupId=window._currentProfile?.groupId;
+  try{const {_fbDb,_fbFns}=window;await _fbFns.deleteDoc(_fbFns.doc(_fbDb,'groups',groupId,'fondo',docId));await loadGroupData();}catch(e){alert('Error: '+e.message);}
 }
 
-/* Presupuesto grupal */
 function openGroupBudgetModal(){
+  if(!window._currentProfile?.groupId){alert('Uníte a un grupo primero');return;}
   currentGbIdx=null;
   document.getElementById('groupBudgetModalTitle').textContent='Nuevo presupuesto grupal';
   document.getElementById('gbSubmitBtn').textContent='Guardar';
-  document.getElementById('gbName').value='';
-  document.getElementById('gbLimit').value='';
+  document.getElementById('gbName').value='';document.getElementById('gbLimit').value='';
   document.getElementById('gbDeleteBtn').style.display='none';
   document.getElementById('groupBudgetModalOverlay').classList.add('open');
 }
 function openEditGroupBudget(i){
-  currentGbIdx=i;
+  currentGbIdx=i;const b=_groupCache.groupBudgets[i];
   document.getElementById('groupBudgetModalTitle').textContent='Editar presupuesto';
   document.getElementById('gbSubmitBtn').textContent='Guardar cambios';
-  document.getElementById('gbName').value=groupBudgets[i].name;
-  document.getElementById('gbLimit').value=groupBudgets[i].limit;
+  document.getElementById('gbName').value=b.name;document.getElementById('gbLimit').value=b.limit;
   document.getElementById('gbDeleteBtn').style.display='block';
   document.getElementById('groupBudgetModalOverlay').classList.add('open');
 }
 function closeGroupBudgetModal(){document.getElementById('groupBudgetModalOverlay').classList.remove('open');}
-function saveGroupBudget(){
-  const name=document.getElementById('gbName').value.trim();
-  const limit=parseFloat(document.getElementById('gbLimit').value);
+async function saveGroupBudget(){
+  const name=document.getElementById('gbName').value.trim();const limit=parseFloat(document.getElementById('gbLimit').value);
   if(!name||!limit){alert('Completá nombre y límite');return;}
-  if(currentGbIdx===null) groupBudgets.push({name,limit,spent:0});
-  else{groupBudgets[currentGbIdx].name=name;groupBudgets[currentGbIdx].limit=limit;}
-  localStorage.setItem('fp_gbud',JSON.stringify(groupBudgets));
-  closeGroupBudgetModal();renderGroupBudgets();
+  const groupId=window._currentProfile?.groupId;
+  try{const {_fbDb,_fbFns}=window;
+    if(currentGbIdx===null){await _fbFns.addDoc(_fbFns.collection(_fbDb,'groups',groupId,'budgets'),{name,limit});}
+    else{const b=_groupCache.groupBudgets[currentGbIdx];await _fbFns.setDoc(_fbFns.doc(_fbDb,'groups',groupId,'budgets',b.id),{name,limit});}
+    closeGroupBudgetModal();await loadGroupData();}catch(e){alert('Error: '+e.message);}
 }
-function deleteGroupBudget(){
+async function deleteGroupBudget(){
   if(!confirm('¿Eliminar este presupuesto?')) return;
-  groupBudgets.splice(currentGbIdx,1);
-  localStorage.setItem('fp_gbud',JSON.stringify(groupBudgets));
-  closeGroupBudgetModal();renderGroupBudgets();
+  const groupId=window._currentProfile?.groupId;const b=_groupCache.groupBudgets[currentGbIdx];
+  try{const {_fbDb,_fbFns}=window;await _fbFns.deleteDoc(_fbFns.doc(_fbDb,'groups',groupId,'budgets',b.id));closeGroupBudgetModal();await loadGroupData();}catch(e){alert('Error: '+e.message);}
 }
 function renderGroupBudgets(){
-  const el=document.getElementById('groupBudgetList');
-  if(!groupBudgets.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin presupuestos grupales.</div>';return;}
-  el.innerHTML=groupBudgets.map((b,i)=>{
-    // usar egresos del fondo que coincidan con el nombre
-    const spent=fondoMovs.filter(m=>m.type==='gasto'&&(m.desc||'').toLowerCase().includes(b.name.toLowerCase())).reduce((s,m)=>s+m.amount,0);
-    const pct=Math.min(100,b.limit>0?Math.round(spent/b.limit*100):0);
-    const color=pct>=90?'#EF4444':pct>=70?'#FBBF24':'#22C55E';
-    return `<div class="budget-item" style="margin-bottom:12px;cursor:pointer" onclick="openEditGroupBudget(${i})">
-      <div class="budget-top"><div class="budget-name">${b.name}</div><div class="budget-vals">${fmt(spent)} / ${fmt(b.limit)}</div></div>
-      <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:${pct}%;background:${color}"></div></div>
-    </div>`;
+  const el=document.getElementById('groupBudgetList');const budgets=_groupCache.groupBudgets;const movs=_groupCache.fondoMovs;
+  if(!budgets.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin presupuestos grupales.</div>';return;}
+  el.innerHTML=budgets.map((b,i)=>{
+    const spent=movs.filter(m=>m.type==='gasto'&&(m.desc||'').toLowerCase().includes(b.name.toLowerCase())).reduce((s,m)=>s+m.amount,0);
+    const pct=Math.min(100,b.limit>0?Math.round(spent/b.limit*100):0);const color=pct>=90?'#EF4444':pct>=70?'#FBBF24':'#22C55E';
+    return `<div class="budget-item" style="margin-bottom:12px;cursor:pointer" onclick="openEditGroupBudget(${i})"><div class="budget-top"><div class="budget-name">${b.name}</div><div class="budget-vals">${fmt(spent)} / ${fmt(b.limit)}</div></div><div class="budget-bar-bg"><div class="budget-bar-fill" style="width:${pct}%;background:${color}"></div></div></div>`;
   }).join('');
 }
 
-/* Metas grupales */
 function openGroupGoalModal(){
-  currentGgIdx=null;
-  currentGgEmoji='🎯';
-  document.getElementById('groupGoalModalTitle').textContent='Nueva meta grupal';
-  document.getElementById('ggSubmitBtn').textContent='Guardar';
-  document.getElementById('ggName').value='';
-  document.getElementById('ggTarget').value='';
-  document.getElementById('ggSaved').value='';
-  document.getElementById('ggDeadline').value='';
-  document.getElementById('ggDeleteBtn').style.display='none';
-  renderGgEmojis();
-  document.getElementById('groupGoalModalOverlay').classList.add('open');
+  if(!window._currentProfile?.groupId){alert('Uníte a un grupo primero');return;}
+  currentGgIdx=null;currentGgEmoji='🎯';
+  document.getElementById('groupGoalModalTitle').textContent='Nueva meta grupal';document.getElementById('ggSubmitBtn').textContent='Guardar';
+  document.getElementById('ggName').value='';document.getElementById('ggTarget').value='';document.getElementById('ggSaved').value='';document.getElementById('ggDeadline').value='';
+  document.getElementById('ggDeleteBtn').style.display='none';renderGgEmojis();document.getElementById('groupGoalModalOverlay').classList.add('open');
 }
 function openEditGroupGoal(i){
-  currentGgIdx=i;
-  currentGgEmoji=groupGoals[i].emoji;
-  document.getElementById('groupGoalModalTitle').textContent='Editar meta grupal';
-  document.getElementById('ggSubmitBtn').textContent='Guardar cambios';
-  document.getElementById('ggName').value=groupGoals[i].name;
-  document.getElementById('ggTarget').value=groupGoals[i].target;
-  document.getElementById('ggSaved').value=groupGoals[i].saved;
-  document.getElementById('ggDeadline').value=groupGoals[i].deadline||'';
-  document.getElementById('ggDeleteBtn').style.display='block';
-  renderGgEmojis();
-  document.getElementById('groupGoalModalOverlay').classList.add('open');
+  currentGgIdx=i;const g=_groupCache.groupGoals[i];currentGgEmoji=g.emoji;
+  document.getElementById('groupGoalModalTitle').textContent='Editar meta grupal';document.getElementById('ggSubmitBtn').textContent='Guardar cambios';
+  document.getElementById('ggName').value=g.name;document.getElementById('ggTarget').value=g.target;document.getElementById('ggSaved').value=g.saved;document.getElementById('ggDeadline').value=g.deadline||'';
+  document.getElementById('ggDeleteBtn').style.display='block';renderGgEmojis();document.getElementById('groupGoalModalOverlay').classList.add('open');
 }
 function renderGgEmojis(){
-  document.getElementById('ggEmojiOptions').innerHTML=GG_EMOJIS.map(e=>
-    `<span style="font-size:22px;padding:5px 8px;border-radius:8px;cursor:pointer;${e===currentGgEmoji?'background:var(--sky-light);outline:2px solid var(--sky)':''}" onclick="pickGgEmoji('${e}')">${e}</span>`
-  ).join('');
+  document.getElementById('ggEmojiOptions').innerHTML=GG_EMOJIS.map(e=>`<span style="font-size:22px;padding:5px 8px;border-radius:8px;cursor:pointer;${e===currentGgEmoji?'background:var(--sky-light);outline:2px solid var(--sky)':''}" onclick="pickGgEmoji('${e}')">${e}</span>`).join('');
 }
 function pickGgEmoji(e){currentGgEmoji=e;renderGgEmojis();}
 function closeGroupGoalModal(){document.getElementById('groupGoalModalOverlay').classList.remove('open');}
-function saveGroupGoal(){
-  const name=document.getElementById('ggName').value.trim();
-  const target=parseFloat(document.getElementById('ggTarget').value);
-  const saved=parseFloat(document.getElementById('ggSaved').value)||0;
-  const deadline=document.getElementById('ggDeadline').value;
+async function saveGroupGoal(){
+  const name=document.getElementById('ggName').value.trim();const target=parseFloat(document.getElementById('ggTarget').value);
+  const saved=parseFloat(document.getElementById('ggSaved').value)||0;const deadline=document.getElementById('ggDeadline').value;
   if(!name||!target){alert('Completá nombre y meta');return;}
-  const obj={name,target,saved,deadline,emoji:currentGgEmoji};
-  if(currentGgIdx===null) groupGoals.push(obj);
-  else groupGoals[currentGgIdx]=obj;
-  localStorage.setItem('fp_ggoals',JSON.stringify(groupGoals));
-  closeGroupGoalModal();renderGroupGoals();
+  const groupId=window._currentProfile?.groupId;const obj={name,target,saved,deadline,emoji:currentGgEmoji};
+  try{const {_fbDb,_fbFns}=window;
+    if(currentGgIdx===null){await _fbFns.addDoc(_fbFns.collection(_fbDb,'groups',groupId,'goals'),obj);}
+    else{const g=_groupCache.groupGoals[currentGgIdx];await _fbFns.setDoc(_fbFns.doc(_fbDb,'groups',groupId,'goals',g.id),obj);}
+    closeGroupGoalModal();await loadGroupData();}catch(e){alert('Error: '+e.message);}
 }
-function deleteGroupGoal(){
+async function deleteGroupGoal(){
   if(!confirm('¿Eliminar esta meta?')) return;
-  groupGoals.splice(currentGgIdx,1);
-  localStorage.setItem('fp_ggoals',JSON.stringify(groupGoals));
-  closeGroupGoalModal();renderGroupGoals();
+  const groupId=window._currentProfile?.groupId;const g=_groupCache.groupGoals[currentGgIdx];
+  try{const {_fbDb,_fbFns}=window;await _fbFns.deleteDoc(_fbFns.doc(_fbDb,'groups',groupId,'goals',g.id));closeGroupGoalModal();await loadGroupData();}catch(e){alert('Error: '+e.message);}
 }
 function renderGroupGoals(){
-  const el=document.getElementById('groupGoalList');
-  if(!groupGoals.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin metas grupales.</div>';return;}
-  el.innerHTML=groupGoals.map((g,i)=>{
-    const pct=g.target>0?Math.min(100,Math.round(g.saved/g.target*100)):0;
-    const done=pct>=100;
+  const el=document.getElementById('groupGoalList');const goals=_groupCache.groupGoals;
+  if(!goals.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin metas grupales.</div>';return;}
+  el.innerHTML=goals.map((g,i)=>{
+    const pct=g.target>0?Math.min(100,Math.round(g.saved/g.target*100)):0;const done=pct>=100;
     const deadline=g.deadline?new Date(g.deadline+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}):'Sin plazo';
-    return `<div class="goal-item">
-      <div class="goal-header">
-        <div class="goal-emoji">${g.emoji}</div>
-        <div class="goal-info"><div class="goal-name">${g.name}${done?' ✅':''}</div><div class="goal-deadline">📅 ${deadline}</div></div>
-        <button class="goal-edit" onclick="openEditGroupGoal(${i})">✏️</button>
-      </div>
-      <div class="goal-amounts">
-        <div class="goal-saved">$${fmtInv(g.saved)} ahorrado</div>
-        <div class="goal-target">Meta: $${fmtInv(g.target)}</div>
-      </div>
-      <div class="goal-bar-bg"><div class="goal-bar-fill ${done?'done':''}" style="width:${pct}%"></div></div>
-      <div class="goal-pct">${pct}%${done?' · ¡Meta alcanzada! 🎉':''}</div>
-    </div>`;
+    return `<div class="goal-item"><div class="goal-header"><div class="goal-emoji">${g.emoji}</div><div class="goal-info"><div class="goal-name">${g.name}${done?' ✅':''}</div><div class="goal-deadline">📅 ${deadline}</div></div><button class="goal-edit" onclick="openEditGroupGoal(${i})">✏️</button></div><div class="goal-amounts"><div class="goal-saved">$${fmtInv(g.saved)} ahorrado</div><div class="goal-target">Meta: $${fmtInv(g.target)}</div></div><div class="goal-bar-bg"><div class="goal-bar-fill ${done?'done':''}" style="width:${pct}%"></div></div><div class="goal-pct">${pct}%${done?' · ¡Meta alcanzada! 🎉':''}</div></div>`;
   }).join('');
 }
 
-/* Lista de compras */
 function openShoppingModal(){
-  document.getElementById('shopItem').value='';
-  document.getElementById('shopQty').value='';
-  document.getElementById('shopPrice').value='';
-  document.getElementById('shopBy').value='';
+  if(!window._currentProfile?.groupId){alert('Uníte a un grupo primero');return;}
+  document.getElementById('shopItem').value='';document.getElementById('shopQty').value='';document.getElementById('shopPrice').value='';
+  const p=window._currentProfile;document.getElementById('shopBy').value=(p.nombre||'')+' '+(p.apellido||'');
   document.getElementById('shoppingModalOverlay').classList.add('open');
 }
 function closeShoppingModal(){document.getElementById('shoppingModalOverlay').classList.remove('open');}
-function saveShopItem(){
-  const name=document.getElementById('shopItem').value.trim();
-  if(!name){alert('Ingresá un producto');return;}
-  shoppingItems.push({
-    name,
-    qty:document.getElementById('shopQty').value.trim(),
-    price:parseFloat(document.getElementById('shopPrice').value)||0,
-    by:document.getElementById('shopBy').value.trim(),
-    done:false,
-    ts:Date.now()
-  });
-  localStorage.setItem('fp_shopping',JSON.stringify(shoppingItems));
-  closeShoppingModal();renderShopping();
+async function saveShopItem(){
+  const name=document.getElementById('shopItem').value.trim();if(!name){alert('Ingresá un producto');return;}
+  const groupId=window._currentProfile?.groupId;
+  try{const {_fbDb,_fbFns}=window;
+    await _fbFns.addDoc(_fbFns.collection(_fbDb,'groups',groupId,'shopping'),{name,qty:document.getElementById('shopQty').value.trim(),price:parseFloat(document.getElementById('shopPrice').value)||0,by:document.getElementById('shopBy').value.trim(),done:false,ts:Date.now()});
+    closeShoppingModal();await loadGroupData();}catch(e){alert('Error: '+e.message);}
 }
-function toggleShopItem(i){
-  shoppingItems[i].done=!shoppingItems[i].done;
-  localStorage.setItem('fp_shopping',JSON.stringify(shoppingItems));
-  renderShopping();
+async function toggleShopItem(docId,current){
+  const groupId=window._currentProfile?.groupId;
+  try{const {_fbDb,_fbFns}=window;await _fbFns.setDoc(_fbFns.doc(_fbDb,'groups',groupId,'shopping',docId),{done:!current},{merge:true});await loadGroupData();}catch(e){}
 }
-function deleteShopItem(i){
-  shoppingItems.splice(i,1);
-  localStorage.setItem('fp_shopping',JSON.stringify(shoppingItems));
-  renderShopping();
+async function deleteShopItem(docId){
+  const groupId=window._currentProfile?.groupId;
+  try{const {_fbDb,_fbFns}=window;await _fbFns.deleteDoc(_fbFns.doc(_fbDb,'groups',groupId,'shopping',docId));await loadGroupData();}catch(e){}
 }
 function renderShopping(){
-  const el=document.getElementById('shoppingList');
-  if(!shoppingItems.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Lista vacía.</div>';return;}
-  const pending=shoppingItems.filter(i=>!i.done);
-  const done=shoppingItems.filter(i=>i.done);
+  const el=document.getElementById('shoppingList');const items=_groupCache.shoppingItems;
+  if(!items.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Lista vacía.</div>';return;}
+  const pending=items.filter(i=>!i.done);const done=items.filter(i=>i.done);
   const totalEst=pending.reduce((s,i)=>s+i.price,0);
-  let html='';
-  if(totalEst>0) html+=`<div style="font-size:11px;font-weight:700;color:var(--gray-400);margin-bottom:8px">Total estimado: $${fmtInv(totalEst)}</div>`;
-  html+=[...pending,...done].map((item,_)=>{
-    const realIdx=shoppingItems.indexOf(item);
-    return `<div class="shop-item-row ${item.done?'checked':''}">
-      <div class="shop-check ${item.done?'done':''}" onclick="toggleShopItem(${realIdx})">${item.done?'✓':''}</div>
-      <div style="flex:1">
-        <div class="shop-name" style="${item.done?'text-decoration:line-through':''}">${item.name}${item.qty?' ('+item.qty+')':''}</div>
-        <div class="shop-qty">${item.by?'Por: '+item.by:''}${item.price?` · $${fmtInv(item.price)}`:''}</div>
-      </div>
-      <button class="shop-del" onclick="deleteShopItem(${realIdx})">✕</button>
-    </div>`;
-  }).join('');
+  let html=totalEst>0?`<div style="font-size:11px;font-weight:700;color:var(--gray-400);margin-bottom:8px">Total estimado: $${fmtInv(totalEst)}</div>`:'';
+  html+=[...pending,...done].map(item=>`<div class="shop-item-row ${item.done?'checked':''}"><div class="shop-check ${item.done?'done':''}" onclick="toggleShopItem('${item.id}',${item.done})">${item.done?'✓':''}</div><div style="flex:1"><div class="shop-name" style="${item.done?'text-decoration:line-through':''}">${item.name}${item.qty?' ('+item.qty+')':''}</div><div class="shop-qty">${item.by?'Por: '+item.by:''}${item.price?' · $'+fmtInv(item.price):''}</div></div><button class="shop-del" onclick="deleteShopItem('${item.id}')">✕</button></div>`).join('');
   el.innerHTML=html;
 }
 
-/* Actividad reciente */
 function renderGroupActivity(){
   const el=document.getElementById('groupActivity');
-  // combinar fondoMovs + groupGoal changes
-  const acts=fondoMovs.slice(0,10).map(m=>({
-    text:`${m.member} ${m.type==='ingreso'?'aportó':'retiró'} $${fmtInv(m.amount)}${m.desc?' · '+m.desc:''}`,
-    color:m.type==='ingreso'?'#22C55E':'#EF4444',
-    date:m.date
-  }));
-  shoppingItems.slice(0,5).forEach(s=>{
-    acts.push({text:`${s.by||'Alguien'} agregó "${s.name}" a la lista`,color:'#3BAAFF',date:new Date(s.ts).toISOString().split('T')[0]});
-  });
-  acts.sort((a,b)=>b.date.localeCompare(a.date));
+  const acts=[
+    ..._groupCache.fondoMovs.map(m=>({text:`${m.member} ${m.type==='ingreso'?'aportó':'retiró'} $${fmtInv(m.amount)}${m.desc?' · '+m.desc:''}`,color:m.type==='ingreso'?'#22C55E':'#EF4444',ts:m.ts||0})),
+    ..._groupCache.shoppingItems.map(s=>({text:`${s.by||'Alguien'} agregó "${s.name}" a la lista`,color:'#3BAAFF',ts:s.ts||0}))
+  ].sort((a,b)=>b.ts-a.ts).slice(0,8);
   if(!acts.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin actividad aún.</div>';return;}
-  el.innerHTML=acts.slice(0,8).map(a=>`
-    <div class="activity-row">
-      <div class="activity-dot" style="background:${a.color}"></div>
-      <div class="activity-info">
-        <div class="activity-text">${a.text}</div>
-        <div class="activity-time">${a.date}</div>
-      </div>
-    </div>`).join('');
+  el.innerHTML=acts.map(a=>`<div class="activity-row"><div class="activity-dot" style="background:${a.color}"></div><div class="activity-info"><div class="activity-text">${a.text}</div><div class="activity-time">${new Date(a.ts).toLocaleDateString('es-AR',{day:'2-digit',month:'short'})}</div></div></div>`).join('');
 }
+
+async function syncLocalTxToFirebase(){
+  if(!window._currentUser||!transactions.length) return;
+  try{const {_fbDb,_fbFns}=window;const uid=window._currentUser.uid;
+    await _fbFns.setDoc(_fbFns.doc(_fbDb,'userTx',uid),{transactions:transactions,updatedAt:Date.now()},{merge:true});}catch(e){console.log('Sync tx error:',e);}
+}
+
 
 /* ── AUTH & MIEMBROS ── */
 let _authMode='login';
@@ -2844,8 +2793,21 @@ async function openMemberPreview(uid){
   document.getElementById('memberPreviewEmail').textContent=m.email;
   document.getElementById('memberPreviewAvatar').textContent=initials;
   document.getElementById('memberPreviewAvatar').style.background=MEMBER_COLORS[0];
+  document.getElementById('memberPreviewStats').innerHTML='<div style="color:var(--gray-400);font-size:12px">Cargando...</div>';
+  document.getElementById('memberPreviewTx').innerHTML='';
+  document.getElementById('memberPreviewOverlay').classList.add('open');
+  // Cargar transacciones desde Firebase
   let txs=[];
-  if(window._currentUser&&uid===window._currentUser.uid) txs=sortByDate(transactions).slice(0,10);
+  try{
+    const txSnap=await _fbFns.getDoc(_fbFns.doc(_fbDb,'userTx',uid));
+    if(txSnap.exists()&&txSnap.data().transactions){
+      txs=sortByDate(txSnap.data().transactions).slice(0,10);
+    }
+  } catch(e){}
+  // Si es el usuario actual y no hay datos en Firebase, usar localStorage
+  if(!txs.length&&window._currentUser&&uid===window._currentUser.uid){
+    txs=sortByDate(transactions).slice(0,10);
+  }
   const ing=txs.filter(t=>t.type==='ingreso').reduce((s,t)=>s+t.amount,0);
   const gas=txs.filter(t=>t.type==='gasto').reduce((s,t)=>s+t.amount,0);
   document.getElementById('memberPreviewStats').innerHTML=`
@@ -2855,7 +2817,6 @@ async function openMemberPreview(uid){
   document.getElementById('memberPreviewTx').innerHTML=txs.length
     ?txs.map(t=>txHTML(t)).join('')
     :'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos.</div>';
-  document.getElementById('memberPreviewOverlay').classList.add('open');
 }
 function closeMemberPreview(){document.getElementById('memberPreviewOverlay').classList.remove('open');}
 
