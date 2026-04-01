@@ -388,7 +388,7 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
   <div class="header-top">
     <div class="logo">💰 <span>Finanzas</span>Pro</div>
     <div class="header-actions">
-      <button class="icon-btn">🔔</button>
+      <button class="icon-btn" id="btnNotif" onclick="openNotifModal()" style="position:relative">🔔<span id="notifBadge" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;background:#EF4444;border-radius:50%;border:1.5px solid white"></span></button>
       <button class="icon-btn" id="btnAuthHeader" onclick="openAuthModal()">👤</button>
     </div>
   </div>
@@ -572,8 +572,9 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
     <div class="card">
       <div class="tx-header">
         <div class="tx-title">Miembros</div>
-        <div class="ver-todo" id="groupLoginHint" onclick="openAuthModal()" style="color:var(--sky-dark);cursor:pointer">Iniciar sesión →</div>
+        <div id="groupActionBtn" style="font-size:12px;font-weight:700;color:var(--sky-dark);cursor:pointer"></div>
       </div>
+      <div id="groupNameDisplay" style="display:none;font-size:13px;font-weight:800;color:var(--gray-400);margin-bottom:10px"></div>
       <div id="membersList" style="display:flex;flex-wrap:wrap;gap:12px;padding:6px 0"></div>
     </div>
 
@@ -895,6 +896,44 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
     <label class="modal-label">Nota <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--gray-400)">(opcional)</span></label>
     <input class="modal-input" id="invNote" type="text" placeholder="Ej: Compra DCA mensual">
     <button class="modal-submit" onclick="saveInvMovement()">Guardar</button>
+  </div>
+</div>
+
+<!-- MODAL NOTIFICACIONES -->
+<div class="modal-overlay" id="notifModalOverlay" onclick="if(event.target.id==='notifModalOverlay')closeNotifModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title">Notificaciones</div>
+      <button class="modal-close" onclick="closeNotifModal()">✕</button>
+    </div>
+    <div id="notifList"></div>
+  </div>
+</div>
+
+<!-- MODAL CREAR GRUPO -->
+<div class="modal-overlay" id="createGroupModalOverlay" onclick="if(event.target.id==='createGroupModalOverlay')closeCreateGroupModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title">Crear grupo</div>
+      <button class="modal-close" onclick="closeCreateGroupModal()">✕</button>
+    </div>
+    <label class="modal-label">Nombre del grupo</label>
+    <input class="modal-input" id="groupNameInp" type="text" placeholder="Ej: Familia García, Casa">
+    <button class="modal-submit" onclick="createGroup()">Crear grupo</button>
+  </div>
+</div>
+
+<!-- MODAL INVITAR -->
+<div class="modal-overlay" id="inviteModalOverlay" onclick="if(event.target.id==='inviteModalOverlay')closeInviteModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title">Invitar al grupo</div>
+      <button class="modal-close" onclick="closeInviteModal()">✕</button>
+    </div>
+    <label class="modal-label">Email del usuario a invitar</label>
+    <input class="modal-input" id="inviteEmailInp" type="email" placeholder="usuario@email.com">
+    <div id="inviteError" style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:10px;display:none"></div>
+    <button class="modal-submit" onclick="sendInvite()">Enviar invitación</button>
   </div>
 </div>
 
@@ -2648,34 +2687,150 @@ function updateAuthUI(){
   }
 }
 
-/* Miembros en Grupo */
-async function renderMembers(){
-  const el=document.getElementById('membersList');
-  const hint=document.getElementById('groupLoginHint');
-  if(!window._currentUser){
-    el.innerHTML='<div style="color:var(--gray-400);font-size:13px;font-weight:700;padding:8px">Iniciá sesión para ver los miembros del grupo.</div>';
-    hint.style.display='block';
-    return;
-  }
-  hint.style.display='none';
+/* ── NOTIFICACIONES ── */
+function openNotifModal(){
+  document.getElementById('notifModalOverlay').classList.add('open');
+  renderNotifs();
+}
+function closeNotifModal(){document.getElementById('notifModalOverlay').classList.remove('open');}
+
+async function renderNotifs(){
+  const el=document.getElementById('notifList');
+  if(!window._currentUser){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Iniciá sesión para ver notificaciones.</div>';return;}
   try{
     const {_fbDb,_fbFns}=window;
-    const snap=await _fbFns.getDocs(_fbFns.collection(_fbDb,'users'));
-    const members=[];
-    snap.forEach(d=>members.push(d.data()));
+    const q=_fbFns.query(_fbFns.collection(_fbDb,'invites'),_fbFns.where('toUid','==',window._currentUser.uid),_fbFns.where('status','==','pending'));
+    const snap=await _fbFns.getDocs(q);
+    const invites=[];
+    snap.forEach(d=>invites.push({id:d.id,...d.data()}));
+    if(!invites.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px;font-weight:700">Sin notificaciones.</div>';return;}
+    el.innerHTML=invites.map(inv=>`
+      <div style="border:1.5px solid var(--gray-200);border-radius:14px;padding:14px;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:800;margin-bottom:4px">👥 Invitación al grupo</div>
+        <div style="font-size:13px;font-weight:700;color:var(--sky-dark);margin-bottom:4px">"${inv.groupName}"</div>
+        <div style="font-size:11px;color:var(--gray-400);font-weight:600;margin-bottom:12px">De: ${inv.fromName}</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="respondInvite('${inv.id}','${inv.groupId}','accepted')" style="flex:1;padding:9px;border-radius:10px;background:linear-gradient(135deg,var(--sky),var(--sky-dark));border:none;color:white;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer">✓ Aceptar</button>
+          <button onclick="respondInvite('${inv.id}','${inv.groupId}','rejected')" style="flex:1;padding:9px;border-radius:10px;background:#FEE2E2;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer">✕ Rechazar</button>
+        </div>
+      </div>`).join('');
+  } catch(e){
+    el.innerHTML='<div style="color:var(--red);font-size:12px;font-weight:700;padding:8px">Error al cargar.</div>';
+  }
+}
+
+async function respondInvite(inviteId,groupId,status){
+  try{
+    const {_fbDb,_fbFns}=window;
+    await _fbFns.setDoc(_fbFns.doc(_fbDb,'invites',inviteId),{status},{merge:true});
+    if(status==='accepted'){
+      await _fbFns.setDoc(_fbFns.doc(_fbDb,'users',window._currentUser.uid),{groupId},{merge:true});
+      window._currentProfile={...window._currentProfile,groupId};
+    }
+    updateNotifBadge();
+    renderNotifs();
+    if(status==='accepted') renderGrupo();
+  } catch(e){alert('Error: '+e.message);}
+}
+
+async function updateNotifBadge(){
+  const badge=document.getElementById('notifBadge');
+  if(!window._currentUser){badge.style.display='none';return;}
+  try{
+    const {_fbDb,_fbFns}=window;
+    const q=_fbFns.query(_fbFns.collection(_fbDb,'invites'),_fbFns.where('toUid','==',window._currentUser.uid),_fbFns.where('status','==','pending'));
+    const snap=await _fbFns.getDocs(q);
+    badge.style.display=snap.size>0?'block':'none';
+  } catch(e){badge.style.display='none';}
+}
+
+/* ── CREAR GRUPO ── */
+function openCreateGroupModal(){document.getElementById('createGroupModalOverlay').classList.add('open');}
+function closeCreateGroupModal(){document.getElementById('createGroupModalOverlay').classList.remove('open');}
+
+async function createGroup(){
+  const name=document.getElementById('groupNameInp').value.trim();
+  if(!name){alert('Ingresá un nombre para el grupo');return;}
+  try{
+    const {_fbDb,_fbFns}=window;
+    const groupRef=_fbFns.doc(_fbFns.collection(_fbDb,'groups'));
+    await _fbFns.setDoc(groupRef,{name,createdBy:window._currentUser.uid,createdAt:new Date().toISOString()});
+    await _fbFns.setDoc(_fbFns.doc(_fbDb,'users',window._currentUser.uid),{groupId:groupRef.id},{merge:true});
+    window._currentProfile={...window._currentProfile,groupId:groupRef.id};
+    closeCreateGroupModal();
+    renderGrupo();
+  } catch(e){alert('Error: '+e.message);}
+}
+
+/* ── INVITAR ── */
+function openInviteModal(){
+  document.getElementById('inviteModalOverlay').classList.add('open');
+  document.getElementById('inviteError').style.display='none';
+  document.getElementById('inviteEmailInp').value='';
+}
+function closeInviteModal(){document.getElementById('inviteModalOverlay').classList.remove('open');}
+
+async function sendInvite(){
+  const email=document.getElementById('inviteEmailInp').value.trim();
+  const errEl=document.getElementById('inviteError');
+  errEl.style.display='none';
+  if(!email){errEl.textContent='Ingresá un email';errEl.style.display='block';return;}
+  try{
+    const {_fbDb,_fbFns}=window;
+    const q=_fbFns.query(_fbFns.collection(_fbDb,'users'),_fbFns.where('email','==',email));
+    const snap=await _fbFns.getDocs(q);
+    if(snap.empty){errEl.textContent='No existe un usuario con ese email';errEl.style.display='block';return;}
+    const toUser=snap.docs[0].data();
+    if(toUser.groupId){errEl.textContent='Este usuario ya pertenece a un grupo';errEl.style.display='block';return;}
+    if(toUser.uid===window._currentUser.uid){errEl.textContent='No podés invitarte a vos mismo';errEl.style.display='block';return;}
+    const groupId=window._currentProfile?.groupId;
+    const groupSnap=await _fbFns.getDoc(_fbFns.doc(_fbDb,'groups',groupId));
+    const groupName=groupSnap.exists()?groupSnap.data().name:'Grupo';
+    const fromName=((window._currentProfile?.nombre||'')+' '+(window._currentProfile?.apellido||'')).trim();
+    const invRef=_fbFns.doc(_fbFns.collection(_fbDb,'invites'));
+    await _fbFns.setDoc(invRef,{toUid:toUser.uid,toEmail:email,fromUid:window._currentUser.uid,fromName,groupId,groupName,status:'pending',createdAt:new Date().toISOString()});
+    closeInviteModal();
+    alert('Invitación enviada a '+email);
+  } catch(e){errEl.textContent='Error: '+e.message;errEl.style.display='block';}
+}
+
+/* ── MIEMBROS ── */
+async function renderMembers(){
+  const el=document.getElementById('membersList');
+  const actionBtn=document.getElementById('groupActionBtn');
+  const nameDisplay=document.getElementById('groupNameDisplay');
+  if(!window._currentUser){
+    el.innerHTML='<div style="color:var(--gray-400);font-size:13px;font-weight:700;padding:8px">Iniciá sesión para ver los miembros.</div>';
+    actionBtn.textContent='Iniciar sesión →';actionBtn.onclick=openAuthModal;
+    nameDisplay.style.display='none';return;
+  }
+  const {_fbDb,_fbFns}=window;
+  const groupId=window._currentProfile?.groupId;
+  if(!groupId){
+    el.innerHTML='<div style="color:var(--gray-400);font-size:13px;font-weight:700;padding:8px">No pertenecés a ningún grupo aún.</div>';
+    actionBtn.textContent='+ Crear grupo';actionBtn.onclick=openCreateGroupModal;
+    nameDisplay.style.display='none';
+    updateNotifBadge();return;
+  }
+  actionBtn.textContent='+ Invitar';actionBtn.onclick=openInviteModal;
+  try{
+    const groupSnap=await _fbFns.getDoc(_fbFns.doc(_fbDb,'groups',groupId));
+    if(groupSnap.exists()){nameDisplay.textContent='👥 '+groupSnap.data().name;nameDisplay.style.display='block';}
+    const q=_fbFns.query(_fbFns.collection(_fbDb,'users'),_fbFns.where('groupId','==',groupId));
+    const snap=await _fbFns.getDocs(q);
+    const members=[];snap.forEach(d=>members.push(d.data()));
     if(!members.length){el.innerHTML='<div style="color:var(--gray-400);font-size:13px;font-weight:700;padding:8px">Solo vos por ahora.</div>';return;}
     el.innerHTML=members.map((m,i)=>{
       const color=MEMBER_COLORS[i%MEMBER_COLORS.length];
-      const isYou=window._currentUser&&m.uid===window._currentUser.uid;
-      const initials=(m.nombre||'?').slice(0,1)+(m.apellido||'').slice(0,1);
+      const isYou=m.uid===window._currentUser.uid;
+      const initials=((m.nombre||'?').slice(0,1)+(m.apellido||'').slice(0,1)).toUpperCase();
       return `<div class="member-card" onclick="openMemberPreview('${m.uid}')">
-        <div class="member-avatar-circle" style="background:${color}">${initials.toUpperCase()}</div>
-        <div class="member-name-label">${m.nombre||''}${isYou?' <span class="member-you-badge">Vos</span>':''}</div>
+        <div class="member-avatar-circle" style="background:${color}">${initials}</div>
+        <div class="member-name-label">${m.nombre||''}${isYou?' · Vos':''}</div>
       </div>`;
     }).join('');
-  } catch(e){
-    el.innerHTML='<div style="color:var(--red);font-size:12px;font-weight:700;padding:8px">Error al cargar miembros.</div>';
-  }
+    updateNotifBadge();
+  } catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px;font-weight:700">Error al cargar miembros.</div>';}
 }
 
 async function openMemberPreview(uid){
@@ -2683,27 +2838,20 @@ async function openMemberPreview(uid){
   const snap=await _fbFns.getDoc(_fbFns.doc(_fbDb,'users',uid));
   if(!snap.exists()) return;
   const m=snap.data();
-  const color=MEMBER_COLORS[0];
   const initials=((m.nombre||'?').slice(0,1)+(m.apellido||'').slice(0,1)).toUpperCase();
   document.getElementById('memberPreviewTitle').textContent=m.nombre+' '+m.apellido;
   document.getElementById('memberPreviewName').textContent=m.nombre+' '+m.apellido;
   document.getElementById('memberPreviewEmail').textContent=m.email;
   document.getElementById('memberPreviewAvatar').textContent=initials;
-  document.getElementById('memberPreviewAvatar').style.background=color;
-
-  // Si es el usuario actual, mostrar sus transacciones locales
+  document.getElementById('memberPreviewAvatar').style.background=MEMBER_COLORS[0];
   let txs=[];
-  if(window._currentUser&&uid===window._currentUser.uid){
-    txs=sortByDate(transactions).slice(0,10);
-  }
-  // Stats
+  if(window._currentUser&&uid===window._currentUser.uid) txs=sortByDate(transactions).slice(0,10);
   const ing=txs.filter(t=>t.type==='ingreso').reduce((s,t)=>s+t.amount,0);
   const gas=txs.filter(t=>t.type==='gasto').reduce((s,t)=>s+t.amount,0);
   document.getElementById('memberPreviewStats').innerHTML=`
     <div class="fondo-stat"><div class="fondo-label">Ingresos</div><div class="fondo-val" style="color:var(--green)">$${fmtInv(ing)}</div></div>
     <div class="fondo-stat"><div class="fondo-label">Gastos</div><div class="fondo-val" style="color:var(--red)">$${fmtInv(gas)}</div></div>
     <div class="fondo-stat"><div class="fondo-label">Balance</div><div class="fondo-val" style="color:var(--sky-dark)">$${fmtInv(ing-gas)}</div></div>`;
-  // Últimos 10 movimientos
   document.getElementById('memberPreviewTx').innerHTML=txs.length
     ?txs.map(t=>txHTML(t)).join('')
     :'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos.</div>';
