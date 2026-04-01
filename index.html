@@ -13,6 +13,49 @@
 <link rel="manifest" id="manifestLink">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231A8FE3'/><text y='.9em' font-size='72' x='12'>💰</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAoqy82RAz9AbkOGgdio81__5laxJJ0sfw",
+  authDomain: "finanzaspro-718af.firebaseapp.com",
+  projectId: "finanzaspro-718af",
+  storageBucket: "finanzaspro-718af.firebasestorage.app",
+  messagingSenderId: "209667709175",
+  appId: "1:209667709175:web:01468708edbe570302dbf2",
+  measurementId: "G-ST8HSK3GVB"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Exponer globalmente para el resto del código
+window._fbAuth = auth;
+window._fbDb = db;
+window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, doc, setDoc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, limit };
+
+onAuthStateChanged(auth, async (user) => {
+  if(user){
+    window._currentUser = user;
+    // cargar perfil desde Firestore
+    const snap = await getDoc(doc(db,'users', user.uid));
+    if(snap.exists()) window._currentProfile = snap.data();
+    else window._currentProfile = {nombre: user.displayName||'', email: user.email};
+    updateAuthUI();
+    if(document.getElementById('sec-grupo').classList.contains('active')) renderGrupo();
+  } else {
+    window._currentUser = null;
+    window._currentProfile = null;
+    updateAuthUI();
+  }
+});
+
+window._fbReady = true;
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--sky:#3BAAFF;--sky-dark:#1A8FE3;--sky-light:#E8F6FF;--gray-50:#F8FAFC;--gray-100:#F0F4F8;--gray-200:#E2E8F0;--gray-400:#94A3B8;--gray-800:#1E293B;--green:#22C55E;--red:#EF4444;--teal:#14B8A6;--radius:18px;--radius-sm:12px;--shadow-card:0 2px 12px rgba(30,41,59,0.08);}
@@ -252,6 +295,12 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
 .goal-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--sky),var(--sky-dark));transition:width .6s ease;}
 .goal-bar-fill.done{background:linear-gradient(90deg,#22C55E,#16A34A);}
 .goal-pct{font-size:10px;font-weight:800;color:var(--gray-400);margin-top:4px;text-align:right;}
+/* ── MIEMBROS ── */
+.member-card{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px;border-radius:14px;transition:background .15s;min-width:64px;}
+.member-card:hover{background:var(--gray-50);}
+.member-avatar-circle{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:white;position:relative;}
+.member-name-label{font-size:11px;font-weight:700;color:var(--gray-800);text-align:center;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.member-you-badge{font-size:9px;font-weight:800;background:var(--sky-light);color:var(--sky-dark);padding:1px 6px;border-radius:99px;}
 /* ── GRUPO ── */
 .group-balance-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--gray-100);}
 .group-balance-row:last-child{border-bottom:none;}
@@ -340,7 +389,7 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
     <div class="logo">💰 <span>Finanzas</span>Pro</div>
     <div class="header-actions">
       <button class="icon-btn">🔔</button>
-      <button class="icon-btn">👤</button>
+      <button class="icon-btn" id="btnAuthHeader" onclick="openAuthModal()">👤</button>
     </div>
   </div>
   <div class="accounts-scroll" id="accountsScroll"></div>
@@ -518,6 +567,15 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
 
   <!-- GRUPO -->
   <div class="section" id="sec-grupo">
+
+    <!-- Miembros -->
+    <div class="card">
+      <div class="tx-header">
+        <div class="tx-title">Miembros</div>
+        <div class="ver-todo" id="groupLoginHint" onclick="openAuthModal()" style="color:var(--sky-dark);cursor:pointer">Iniciar sesión →</div>
+      </div>
+      <div id="membersList" style="display:flex;flex-wrap:wrap;gap:12px;padding:6px 0"></div>
+    </div>
 
     <!-- Balance neto -->
     <div class="card">
@@ -837,6 +895,68 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
     <label class="modal-label">Nota <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--gray-400)">(opcional)</span></label>
     <input class="modal-input" id="invNote" type="text" placeholder="Ej: Compra DCA mensual">
     <button class="modal-submit" onclick="saveInvMovement()">Guardar</button>
+  </div>
+</div>
+
+<!-- MODAL AUTH -->
+<div class="modal-overlay" id="authModalOverlay" onclick="if(event.target.id==='authModalOverlay')closeAuthModal()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title" id="authModalTitle">Iniciar sesión</div>
+      <button class="modal-close" onclick="closeAuthModal()">✕</button>
+    </div>
+
+    <!-- Vista logueado -->
+    <div id="authLoggedIn" style="display:none">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+        <div id="authAvatar" style="width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:white;background:var(--sky-dark);flex-shrink:0"></div>
+        <div>
+          <div id="authName" style="font-size:16px;font-weight:800"></div>
+          <div id="authEmail" style="font-size:12px;color:var(--gray-400);font-weight:600"></div>
+        </div>
+      </div>
+      <button onclick="doSignOut()" style="width:100%;padding:13px;border-radius:14px;background:#FEE2E2;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;">Cerrar sesión</button>
+    </div>
+
+    <!-- Vista no logueado -->
+    <div id="authLoggedOut">
+      <div class="modal-row" style="margin-bottom:16px">
+        <button class="modal-btn sel-ingreso" id="btnAuthLogin" onclick="setAuthMode('login')">Iniciar sesión</button>
+        <button class="modal-btn" id="btnAuthRegister" onclick="setAuthMode('register')">Registrarse</button>
+      </div>
+      <div id="authRegisterFields" style="display:none">
+        <label class="modal-label">Nombre</label>
+        <input class="modal-input" id="authNombre" type="text" placeholder="Ej: Juan">
+        <label class="modal-label">Apellido</label>
+        <input class="modal-input" id="authApellido" type="text" placeholder="Ej: García">
+      </div>
+      <label class="modal-label">Email</label>
+      <input class="modal-input" id="authEmailInp" type="email" placeholder="tu@email.com">
+      <label class="modal-label">Contraseña</label>
+      <input class="modal-input" id="authPassInp" type="password" placeholder="Mínimo 6 caracteres">
+      <div id="authError" style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:10px;display:none"></div>
+      <button class="modal-submit" id="authSubmitBtn" onclick="doAuth()">Iniciar sesión</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VISTA PREVIA MIEMBRO -->
+<div class="modal-overlay" id="memberPreviewOverlay" onclick="if(event.target.id==='memberPreviewOverlay')closeMemberPreview()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title" id="memberPreviewTitle">Perfil</div>
+      <button class="modal-close" onclick="closeMemberPreview()">✕</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <div id="memberPreviewAvatar" style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:white;flex-shrink:0"></div>
+      <div>
+        <div id="memberPreviewName" style="font-size:15px;font-weight:800"></div>
+        <div id="memberPreviewEmail" style="font-size:11px;color:var(--gray-400);font-weight:600"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px" id="memberPreviewStats"></div>
+    <div style="font-size:11px;font-weight:800;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Últimos 10 movimientos</div>
+    <div id="memberPreviewTx"></div>
   </div>
 </div>
 
@@ -2156,6 +2276,7 @@ let currentGgEmoji='🎯';
 const MEMBER_COLORS=['#4F79F6','#A78BFA','#F4A261','#34D399','#F87171','#14B8A6','#F472B6','#FBBF24'];
 
 function renderGrupo(){
+  renderMembers();
   renderGroupBalance();
   renderFondo();
   renderGroupBudgets();
@@ -2445,6 +2566,150 @@ function renderGroupActivity(){
       </div>
     </div>`).join('');
 }
+
+/* ── AUTH & MIEMBROS ── */
+let _authMode='login';
+
+function openAuthModal(){
+  document.getElementById('authModalOverlay').classList.add('open');
+  if(window._currentUser) showLoggedIn();
+  else showLoggedOut();
+}
+function closeAuthModal(){document.getElementById('authModalOverlay').classList.remove('open');}
+
+function showLoggedIn(){
+  const p=window._currentProfile||{};
+  const name=p.nombre&&p.apellido?p.nombre+' '+p.apellido:(p.nombre||window._currentUser.displayName||'Usuario');
+  document.getElementById('authLoggedIn').style.display='block';
+  document.getElementById('authLoggedOut').style.display='none';
+  document.getElementById('authName').textContent=name;
+  document.getElementById('authEmail').textContent=window._currentUser.email;
+  document.getElementById('authAvatar').textContent=name.slice(0,2).toUpperCase();
+  document.getElementById('authModalTitle').textContent='Mi perfil';
+}
+function showLoggedOut(){
+  document.getElementById('authLoggedIn').style.display='none';
+  document.getElementById('authLoggedOut').style.display='block';
+  document.getElementById('authModalTitle').textContent='Iniciar sesión';
+  setAuthMode('login');
+}
+function setAuthMode(m){
+  _authMode=m;
+  document.getElementById('btnAuthLogin').className='modal-btn'+(m==='login'?' sel-ingreso':'');
+  document.getElementById('btnAuthRegister').className='modal-btn'+(m==='register'?' sel-gasto':'');
+  document.getElementById('authRegisterFields').style.display=m==='register'?'block':'none';
+  document.getElementById('authSubmitBtn').textContent=m==='login'?'Iniciar sesión':'Crear cuenta';
+  document.getElementById('authModalTitle').textContent=m==='login'?'Iniciar sesión':'Registrarse';
+  document.getElementById('authError').style.display='none';
+}
+async function doAuth(){
+  const email=document.getElementById('authEmailInp').value.trim();
+  const pass=document.getElementById('authPassInp').value;
+  const errEl=document.getElementById('authError');
+  errEl.style.display='none';
+  if(!email||!pass){errEl.textContent='Completá email y contraseña';errEl.style.display='block';return;}
+  try{
+    const {_fbAuth,_fbDb,_fbFns}=window;
+    if(_authMode==='login'){
+      await _fbFns.signInWithEmailAndPassword(_fbAuth,email,pass);
+    } else {
+      const nombre=document.getElementById('authNombre').value.trim();
+      const apellido=document.getElementById('authApellido').value.trim();
+      if(!nombre||!apellido){errEl.textContent='Ingresá nombre y apellido';errEl.style.display='block';return;}
+      const cred=await _fbFns.createUserWithEmailAndPassword(_fbAuth,email,pass);
+      await _fbFns.updateProfile(cred.user,{displayName:nombre+' '+apellido});
+      const profileData={nombre,apellido,email,uid:cred.user.uid,createdAt:new Date().toISOString()};
+      await _fbFns.setDoc(_fbFns.doc(_fbDb,'users',cred.user.uid),profileData);
+      window._currentProfile=profileData;
+    }
+    closeAuthModal();
+    updateAuthUI();
+    renderGrupo();
+  } catch(e){
+    const msgs={'auth/user-not-found':'Usuario no encontrado','auth/wrong-password':'Contraseña incorrecta','auth/email-already-in-use':'Email ya registrado','auth/weak-password':'Contraseña muy corta','auth/invalid-email':'Email inválido','auth/invalid-credential':'Email o contraseña incorrectos'};
+    errEl.textContent=msgs[e.code]||e.message;
+    errEl.style.display='block';
+  }
+}
+async function doSignOut(){
+  await window._fbFns.signOut(window._fbAuth);
+  closeAuthModal();
+  updateAuthUI();
+  renderGrupo();
+}
+function updateAuthUI(){
+  const btn=document.getElementById('btnAuthHeader');
+  if(window._currentUser&&window._currentProfile){
+    const name=window._currentProfile.nombre||'';
+    btn.textContent=name.slice(0,2).toUpperCase()||'👤';
+    btn.style.fontWeight='800';btn.style.fontSize='13px';
+  } else {
+    btn.textContent='👤';btn.style.fontWeight='';btn.style.fontSize='';
+  }
+}
+
+/* Miembros en Grupo */
+async function renderMembers(){
+  const el=document.getElementById('membersList');
+  const hint=document.getElementById('groupLoginHint');
+  if(!window._currentUser){
+    el.innerHTML='<div style="color:var(--gray-400);font-size:13px;font-weight:700;padding:8px">Iniciá sesión para ver los miembros del grupo.</div>';
+    hint.style.display='block';
+    return;
+  }
+  hint.style.display='none';
+  try{
+    const {_fbDb,_fbFns}=window;
+    const snap=await _fbFns.getDocs(_fbFns.collection(_fbDb,'users'));
+    const members=[];
+    snap.forEach(d=>members.push(d.data()));
+    if(!members.length){el.innerHTML='<div style="color:var(--gray-400);font-size:13px;font-weight:700;padding:8px">Solo vos por ahora.</div>';return;}
+    el.innerHTML=members.map((m,i)=>{
+      const color=MEMBER_COLORS[i%MEMBER_COLORS.length];
+      const isYou=window._currentUser&&m.uid===window._currentUser.uid;
+      const initials=(m.nombre||'?').slice(0,1)+(m.apellido||'').slice(0,1);
+      return `<div class="member-card" onclick="openMemberPreview('${m.uid}')">
+        <div class="member-avatar-circle" style="background:${color}">${initials.toUpperCase()}</div>
+        <div class="member-name-label">${m.nombre||''}${isYou?' <span class="member-you-badge">Vos</span>':''}</div>
+      </div>`;
+    }).join('');
+  } catch(e){
+    el.innerHTML='<div style="color:var(--red);font-size:12px;font-weight:700;padding:8px">Error al cargar miembros.</div>';
+  }
+}
+
+async function openMemberPreview(uid){
+  const {_fbDb,_fbFns}=window;
+  const snap=await _fbFns.getDoc(_fbFns.doc(_fbDb,'users',uid));
+  if(!snap.exists()) return;
+  const m=snap.data();
+  const color=MEMBER_COLORS[0];
+  const initials=((m.nombre||'?').slice(0,1)+(m.apellido||'').slice(0,1)).toUpperCase();
+  document.getElementById('memberPreviewTitle').textContent=m.nombre+' '+m.apellido;
+  document.getElementById('memberPreviewName').textContent=m.nombre+' '+m.apellido;
+  document.getElementById('memberPreviewEmail').textContent=m.email;
+  document.getElementById('memberPreviewAvatar').textContent=initials;
+  document.getElementById('memberPreviewAvatar').style.background=color;
+
+  // Si es el usuario actual, mostrar sus transacciones locales
+  let txs=[];
+  if(window._currentUser&&uid===window._currentUser.uid){
+    txs=sortByDate(transactions).slice(0,10);
+  }
+  // Stats
+  const ing=txs.filter(t=>t.type==='ingreso').reduce((s,t)=>s+t.amount,0);
+  const gas=txs.filter(t=>t.type==='gasto').reduce((s,t)=>s+t.amount,0);
+  document.getElementById('memberPreviewStats').innerHTML=`
+    <div class="fondo-stat"><div class="fondo-label">Ingresos</div><div class="fondo-val" style="color:var(--green)">$${fmtInv(ing)}</div></div>
+    <div class="fondo-stat"><div class="fondo-label">Gastos</div><div class="fondo-val" style="color:var(--red)">$${fmtInv(gas)}</div></div>
+    <div class="fondo-stat"><div class="fondo-label">Balance</div><div class="fondo-val" style="color:var(--sky-dark)">$${fmtInv(ing-gas)}</div></div>`;
+  // Últimos 10 movimientos
+  document.getElementById('memberPreviewTx').innerHTML=txs.length
+    ?txs.map(t=>txHTML(t)).join('')
+    :'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px;font-weight:700">Sin movimientos.</div>';
+  document.getElementById('memberPreviewOverlay').classList.add('open');
+}
+function closeMemberPreview(){document.getElementById('memberPreviewOverlay').classList.remove('open');}
 
 /* ── PWA ── */
 (function(){
