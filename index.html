@@ -751,6 +751,8 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
       <option value="EUR">EUR — Euros</option>
       <option value="BRL">BRL — Reales</option>
     </select>
+    <label class="modal-label" id="accBalanceLabel">Saldo inicial <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--gray-400)">(opcional)</span></label>
+    <input class="modal-input" id="accBalance" type="number" placeholder="0,00" min="0" step="0.01">
     <button class="modal-submit" id="accModalSubmit" onclick="saveAccModal()">Agregar cuenta</button>
     <button id="accDeleteBtn" onclick="deleteSelectedAcc()" style="display:none;width:100%;margin-top:8px;padding:12px;border-radius:16px;background:#FEE2E2;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;">🗑 Eliminar cuenta</button>
   </div>
@@ -1214,6 +1216,10 @@ function editSelectedAcc(){
   document.getElementById('accIconSelected').textContent=acc.icon;
   document.getElementById('accName').value=acc.name;
   document.getElementById('accCurrency').value=acc.currency;
+  // Mostrar saldo actual calculado
+  const balActual=calcAccBalance(acc.name);
+  document.getElementById('accBalance').value=balActual!==0?balActual:'';
+  document.getElementById('accBalanceLabel').firstChild.textContent='Ajustar saldo ';
   document.getElementById('accModalTitle').textContent='Editar cuenta';
   document.getElementById('accModalSubmit').textContent='Guardar cambios';
   document.getElementById('accDeleteBtn').style.display='block';
@@ -1372,7 +1378,7 @@ function addBudget(){
 }
 
 /* ── FORMAT ── */
-function fmt(n){return '$'+Math.abs(n).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});}
+function fmt(n){return '$'+Math.abs(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtFull(n){return '$'+Math.abs(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
 /* ── THIS MONTH TX ── */
@@ -1407,6 +1413,8 @@ function openAccModal(){
   document.getElementById('accIconSelected').textContent='💵';
   document.getElementById('accName').value='';
   document.getElementById('accCurrency').value='ARS';
+  document.getElementById('accBalance').value='';
+  document.getElementById('accBalanceLabel').firstChild.textContent='Saldo inicial ';
   document.getElementById('accModalTitle').textContent='Nueva cuenta';
   document.getElementById('accModalSubmit').textContent='Agregar cuenta';
   document.getElementById('accDeleteBtn').style.display='none';
@@ -1421,9 +1429,19 @@ function pickAccIcon(ic){
 function saveAccModal(){
   const name=document.getElementById('accName').value.trim();
   const currency=document.getElementById('accCurrency').value;
+  const balInput=parseFloat(document.getElementById('accBalance').value);
   if(!name){alert('Ingresá un nombre para la cuenta');return;}
   if(accEditIndex===null){
+    // Nueva cuenta — si se ingresó saldo inicial, crear transacción de ingreso
     accounts.push({icon:selectedAccIcon,name,currency});
+    if(!isNaN(balInput)&&balInput!==0){
+      transactions.unshift({
+        id:Date.now(),amount:Math.abs(balInput),date:new Date().toISOString().split('T')[0],
+        time:'00:00',desc:'Saldo inicial',cuenta:name,
+        type:balInput>=0?'ingreso':'gasto',cat:balInput>=0?'💰 Saldo inicial':'💸 Saldo inicial',formaPago:''
+      });
+      localStorage.setItem('fp_tx',JSON.stringify(transactions));
+    }
   } else {
     const oldName=accounts[accEditIndex].name;
     accounts[accEditIndex]={icon:selectedAccIcon,name,currency};
@@ -1431,10 +1449,23 @@ function saveAccModal(){
       if(t.cuenta===oldName) t.cuenta=name;
       if(t.destino===oldName) t.destino=name;
     });
+    // Si se cambió el saldo, agregar transacción de ajuste
+    if(!isNaN(balInput)){
+      const balActual=calcAccBalance(name);
+      const diff=balInput-balActual;
+      if(Math.abs(diff)>0.001){
+        transactions.unshift({
+          id:Date.now(),amount:Math.abs(diff),date:new Date().toISOString().split('T')[0],
+          time:'00:00',desc:'Ajuste de saldo',cuenta:name,
+          type:diff>=0?'ingreso':'gasto',cat:diff>=0?'💰 Ajuste de saldo':'💸 Ajuste de saldo',formaPago:''
+        });
+      }
+    }
     localStorage.setItem('fp_tx',JSON.stringify(transactions));
     currentAccFilter=name;
   }
   localStorage.setItem('fp_accs',JSON.stringify(accounts));
+  if(window._currentUser) syncLocalTxToFirebase();
   closeAccModal();
   renderAccountsHeader();
   populateAccSelects();
