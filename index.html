@@ -1079,6 +1079,18 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
   </div>
 </div>
 
+<!-- MODAL DETALLE TRANSACCIÓN -->
+<div class="modal-overlay" id="txDetailOverlay" onclick="if(event.target.id==='txDetailOverlay')closeTxDetail()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div class="modal-title" id="txDetailTitle">Transacción</div>
+      <button class="modal-close" onclick="closeTxDetail()">✕</button>
+    </div>
+    <div id="txDetailBody"></div>
+    <button onclick="deleteTx()" style="width:100%;margin-top:14px;padding:13px;border-radius:14px;background:#FEE2E2;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;">🗑 Eliminar transacción</button>
+  </div>
+</div>
+
 <!-- EMOJI PICKER -->
 <div class="floating-overlay" id="emojiOverlay">
   <div class="floating-box">
@@ -1519,7 +1531,7 @@ function txHTML(t){
   const ts=t.time?` · ${t.time}`:'';
   const label=t.desc||subline;
   const payBadge=t.formaPago?`<span style="font-size:10px;background:var(--gray-100);padding:1px 6px;border-radius:6px;margin-left:4px">${t.formaPago}</span>`:'';
-  return `<div class="tx-item">
+  return `<div class="tx-item" onclick="openTxDetail('${t.id}')">
     <div class="tx-icon" style="background:${bg}">${icon}</div>
     <div class="tx-info">
       <div class="tx-name">${label}${payBadge}</div>
@@ -1527,6 +1539,52 @@ function txHTML(t){
     </div>
     <div class="tx-amount ${cls}">${sign}${fmt(t.amount)}</div>
   </div>`;
+}
+
+/* ── DETALLE TRANSACCIÓN ── */
+let _txDetailId=null;
+function openTxDetail(id){
+  const t=transactions.find(tx=>String(tx.id)===String(id));
+  if(!t) return;
+  _txDetailId=id;
+  const isTr=t.type==='transferencia';
+  const typeLabel=t.type==='ingreso'?'💰 Ingreso':t.type==='gasto'?'💸 Gasto':'🔄 Transferencia';
+  const sign=t.type==='ingreso'?'+':t.type==='gasto'?'-':'⇄';
+  const cls=t.type==='ingreso'?'pos':t.type==='gasto'?'neg':'transfer';
+  const color=isTr?'#14B8A6':catColor(t.cat);
+  document.getElementById('txDetailTitle').textContent=t.desc||t.cat?.split(' ').slice(1).join(' ')||'Transacción';
+  const rows=[
+    {label:'Tipo',value:typeLabel},
+    {label:'Monto',value:`<span class="tx-amount ${cls}" style="font-size:20px;font-family:DM Mono,monospace">${sign}${fmt(t.amount)}</span>`},
+    {label:'Fecha',value:new Date(t.date+'T00:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})},
+    t.time?{label:'Hora',value:t.time}:null,
+    {label:'Cuenta',value:isTr?`${t.cuenta} → ${t.destino}`:t.cuenta},
+    !isTr?{label:'Categoría',value:t.cat||'—'}:null,
+    t.formaPago?{label:'Forma de pago',value:t.formaPago}:null,
+    t.desc?{label:'Descripción',value:t.desc}:null,
+  ].filter(Boolean);
+  let html=rows.map(r=>`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--gray-100)">
+      <div style="font-size:11px;font-weight:800;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;margin-right:12px">${r.label}</div>
+      <div style="font-size:13px;font-weight:700;text-align:right">${r.value}</div>
+    </div>`).join('');
+  if(t.img){
+    html+=`<div style="margin-top:12px"><div style="font-size:11px;font-weight:800;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Comprobante</div>
+    <img src="${t.img}" style="width:100%;border-radius:12px;max-height:200px;object-fit:cover;cursor:pointer" onclick="window.open('${t.img}')"></div>`;
+  }
+  document.getElementById('txDetailBody').innerHTML=html;
+  document.getElementById('txDetailOverlay').classList.add('open');
+}
+function closeTxDetail(){document.getElementById('txDetailOverlay').classList.remove('open');_txDetailId=null;}
+function deleteTx(){
+  if(!_txDetailId) return;
+  if(!confirm('¿Eliminar esta transacción?')) return;
+  transactions=transactions.filter(t=>String(t.id)!==String(_txDetailId));
+  localStorage.setItem('fp_tx',JSON.stringify(transactions));
+  if(window._currentUser) syncLocalTxToFirebase();
+  closeTxDetail();
+  refreshAll();
+  renderAllTx();
 }
 
 /* ── ALL TX ── */
