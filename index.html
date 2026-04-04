@@ -41,13 +41,19 @@ onAuthStateChanged(auth, async (user) => {
   if(user){
     window._currentUser = user;
     const snap = await getDoc(doc(db,'users', user.uid));
-    if(snap.exists()) window._currentProfile = snap.data();
-    else window._currentProfile = {nombre: user.displayName||'', email: user.email};
-    updateAuthUI();
-    updateNotifBadge();
-    // sincronizar transacciones personales a Firebase
-    syncLocalTxToFirebase();
-    if(document.getElementById('sec-grupo').classList.contains('active')) renderGrupo();
+    if(snap.exists()){
+      window._currentProfile = snap.data();
+      updateAuthUI();
+      updateNotifBadge();
+      syncLocalTxToFirebase();
+      if(document.getElementById('sec-grupo').classList.contains('active')) renderGrupo();
+    } else {
+      // Perfil incompleto — pedir nombre y apellido
+      window._currentProfile = {email: user.email, uid: user.uid};
+      updateAuthUI();
+      // Abrir modal para completar perfil
+      setTimeout(()=>openCompleteProfileModal(), 500);
+    }
   } else {
     window._currentUser = null;
     window._currentProfile = null;
@@ -938,6 +944,21 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
     <input class="modal-input" id="inviteEmailInp" type="email" placeholder="usuario@email.com">
     <div id="inviteError" style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:10px;display:none"></div>
     <button class="modal-submit" onclick="sendInvite()">Enviar invitación</button>
+  </div>
+</div>
+
+<!-- MODAL COMPLETAR PERFIL -->
+<div class="modal-overlay" id="completeProfileOverlay">
+  <div class="modal">
+    <div style="margin-bottom:18px">
+      <div class="modal-title">Completar perfil</div>
+      <div style="font-size:13px;color:var(--gray-400);font-weight:600;margin-top:6px">Para usar el grupo necesitamos tu nombre.</div>
+    </div>
+    <label class="modal-label">Nombre</label>
+    <input class="modal-input" id="cpNombre" type="text" placeholder="Ej: Uriel">
+    <label class="modal-label">Apellido</label>
+    <input class="modal-input" id="cpApellido" type="text" placeholder="Ej: Pereyra">
+    <button class="modal-submit" onclick="saveCompleteProfile()">Guardar</button>
   </div>
 </div>
 
@@ -2724,6 +2745,31 @@ function updateAuthUI(){
   } else {
     btn.textContent='👤';btn.style.fontWeight='';btn.style.fontSize='';
   }
+}
+
+/* ── COMPLETAR PERFIL ── */
+function openCompleteProfileModal(){
+  document.getElementById('cpNombre').value='';
+  document.getElementById('cpApellido').value='';
+  document.getElementById('completeProfileOverlay').classList.add('open');
+}
+async function saveCompleteProfile(){
+  const nombre=document.getElementById('cpNombre').value.trim();
+  const apellido=document.getElementById('cpApellido').value.trim();
+  if(!nombre||!apellido){alert('Ingresá nombre y apellido');return;}
+  try{
+    const {_fbDb,_fbFns}=window;
+    const uid=window._currentUser.uid;
+    const profileData={nombre,apellido,email:window._currentUser.email,uid,createdAt:new Date().toISOString()};
+    await _fbFns.setDoc(_fbFns.doc(_fbDb,'users',uid),profileData);
+    await _fbFns.updateProfile(window._currentUser,{displayName:nombre+' '+apellido});
+    window._currentProfile={...window._currentProfile,...profileData};
+    document.getElementById('completeProfileOverlay').classList.remove('open');
+    updateAuthUI();
+    updateNotifBadge();
+    syncLocalTxToFirebase();
+    if(document.getElementById('sec-grupo').classList.contains('active')) renderGrupo();
+  } catch(e){alert('Error: '+e.message);}
 }
 
 /* ── NOTIFICACIONES ── */
