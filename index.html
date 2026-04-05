@@ -635,6 +635,11 @@ body{font-family:'Nunito',sans-serif;background:var(--gray-100);color:var(--gray
       <div id="groupActivity"></div>
     </div>
 
+    <!-- Salir del grupo -->
+    <div id="leaveGroupBtn" style="display:none">
+      <button onclick="confirmLeaveGroup()" style="width:100%;padding:14px;border-radius:var(--radius-sm);background:#FEE2E2;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;">🚪 Salir del grupo</button>
+    </div>
+
   </div>
 
 </div>
@@ -2747,6 +2752,18 @@ function updateAuthUI(){
   }
 }
 
+async function confirmLeaveGroup(){
+  if(!confirm('¿Estás seguro que querés salir del grupo? Vas a dejar de ver la información compartida.')) return;
+  try{
+    const {_fbDb,_fbFns}=window;
+    const uid=window._currentUser.uid;
+    await _fbFns.setDoc(_fbFns.doc(_fbDb,'users',uid),{groupId:null},{merge:true});
+    window._currentProfile={...window._currentProfile,groupId:null};
+    document.getElementById('leaveGroupBtn').style.display='none';
+    renderGrupo();
+  } catch(e){alert('Error al salir del grupo: '+e.message);}
+}
+
 /* ── COMPLETAR PERFIL ── */
 function openCompleteProfileModal(){
   document.getElementById('cpNombre').value='';
@@ -2896,9 +2913,11 @@ async function renderMembers(){
     el.innerHTML='<div style="color:var(--gray-400);font-size:13px;font-weight:700;padding:8px">No pertenecés a ningún grupo aún.</div>';
     actionBtn.textContent='+ Crear grupo';actionBtn.onclick=openCreateGroupModal;
     nameDisplay.style.display='none';
+    document.getElementById('leaveGroupBtn').style.display='none';
     updateNotifBadge();return;
   }
   actionBtn.textContent='+ Invitar';actionBtn.onclick=openInviteModal;
+  document.getElementById('leaveGroupBtn').style.display='block';
   try{
     const groupSnap=await _fbFns.getDoc(_fbFns.doc(_fbDb,'groups',groupId));
     let createdBy=null;
