@@ -1,148 +1,86 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zenfy - Finanzas Personales</title>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenfy - Finanzas</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
-        :root {
-            --primary-color: #2D3250;
-            --secondary-color: #424769;
-            --accent-color: #7077A1;
-            --zenfy-green: #5ED4A4;
-            --text-light: #F6B17A;
-            --bg-gradient: linear-gradient(135deg, #2D3250 0%, #424769 100%);
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-
-        body { background-color: #f0f2f5; padding-bottom: 80px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-
-        /* HEADER ORIGINAL */
-        .header {
-            background: var(--bg-gradient);
-            padding: 40px 20px;
-            border-bottom-left-radius: 30px;
-            border-bottom-right-radius: 30px;
-            color: white;
-            text-align: center;
-        }
-
-        .content { flex: 1; overflow-y: auto; padding-bottom: 20px; }
-
-        /* TARJETAS DISEÑO ORIGINAL */
-        .balance-card {
-            background: white;
-            margin: -40px 20px 20px;
-            padding: 25px;
-            border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-
-        .balance-amount {
-            font-size: 2.8em;
-            font-weight: bold;
-            color: var(--primary-color);
-            margin: 10px 0;
-        }
-
-        .view { display: none; }
-        .view.active { display: block; }
-
-        /* BOTONES DE ACCIÓN */
-        .actions { display: flex; gap: 10px; margin-top: 15px; }
+        :root { --primary: #5ED4A4; --bg: #F0F4F8; --text: #1A1C1E; --gray: #6C757D; --white: #ffffff; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        header { padding: 15px; text-align: center; background: var(--white); box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+        .view { display: none; } .view.active { display: block; }
+        .card { background: var(--white); padding: 20px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; text-align: center; }
+        .amount { font-size: 2.2rem; font-weight: 800; color: var(--primary); margin: 10px 0; }
+        
+        /* Botones de acción rápido */
+        .actions { display: flex; gap: 10px; margin-bottom: 20px; }
         .btn-add { flex: 1; padding: 12px; border-radius: 12px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-in { background: var(--zenfy-green); color: white; }
+        .btn-in { background: var(--primary); color: white; }
         .btn-out { background: #FF6B6B; color: white; }
 
-        /* BARRA NAVEGACIÓN CON PNGs */
-        .nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #E0E4E8; z-index: 100; }
-        .nav-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; color: #888; font-size: 11px; cursor: pointer; flex: 1; }
-        .nav-btn.active { color: var(--primary-color); font-weight: bold; }
-        .nav-icon { width: 24px; height: 24px; margin-bottom: 4px; transition: 0.3s; }
+        /* Nav inferior */
+        .nav { position: fixed; bottom: 0; width: 100%; background: var(--white); display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid #E0E4E8; z-index: 100; }
+        .nav-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; color: var(--gray); font-size: 11px; cursor: pointer; flex: 1; }
+        .nav-btn.active { color: var(--primary); font-weight: bold; }
+        .nav-icon { width: 26px; height: 26px; margin-bottom: 4px; transition: 0.3s; }
         .nav-btn:not(.active) .nav-icon { filter: grayscale(1); opacity: 0.5; }
 
-        /* MODAL */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; }
+        /* Modal simple */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
         .modal-content { background: white; padding: 25px; border-radius: 20px; width: 85%; max-width: 400px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
-<header class="header">
-    <h1>Zenfy</h1>
-    <p>Tu paz financiera comienza aquí</p>
-</header>
+<header><h1>Zenfy</h1></header>
 
 <main class="content">
     <section id="inicio" class="view active">
-        <div class="balance-card">
-            <p style="color: #666; font-size: 0.9em;">BALANCE TOTAL</p>
-            <div id="totalBalance" class="balance-amount">$12,450.00</div>
+        <div class="card">
+            <p>Balance Disponible</p>
+            <div id="totalBalance" class="amount">$0,00</div>
             <div class="actions">
                 <button class="btn-add btn-in" onclick="openModal('ingreso')">+ Ingreso</button>
                 <button class="btn-add btn-out" onclick="openModal('gasto')">- Gasto</button>
             </div>
         </div>
-        <div style="padding: 0 20px;">
-            <canvas id="mainChart" style="max-height: 180px;"></canvas>
-        </div>
+        <canvas id="mainChart" style="max-height: 180px;"></canvas>
     </section>
 
     <section id="transacciones" class="view">
-        <div class="balance-card">
-            <h3>Historial de Movimientos</h3>
-            <div id="listaTransacciones" style="margin-top: 15px; text-align: left;">Cargando...</div>
+        <div class="card">
+            <h2>Movimientos</h2>
+            <div id="listaTransacciones" style="text-align: left; font-size: 0.9em;">Cargando...</div>
         </div>
     </section>
 
-    <section id="notificaciones" class="view">
-        <div class="balance-card">
-            <h3>Notificaciones</h3>
-            <p style="color: #666; margin-top: 10px;">No tienes mensajes nuevos.</p>
-        </div>
-    </section>
-
-    <section id="perfil" class="view">
-        <div class="balance-card">
-            <h3>Mi Perfil</h3>
-            <p style="color: #666; margin-top: 10px;">Configuración de usuario.</p>
-        </div>
-    </section>
+    <section id="notificaciones" class="view"><div class="card"><h2>Avisos</h2><p>No hay alertas nuevas.</p></div></section>
+    <section id="perfil" class="view"><div class="card"><h2>Mi Perfil</h2><p>Configuración de usuario.</p></div></section>
 </main>
 
 <div id="modalTransaccion" class="modal">
     <div class="modal-content">
-        <h3 id="modalTitle" style="color: var(--primary-color);">Nuevo Registro</h3>
+        <h3 id="modalTitle">Nuevo Registro</h3>
         <input type="number" id="monto" placeholder="Monto $">
         <input type="text" id="descripcion" placeholder="Descripción">
         <button class="btn-add btn-in" style="width:100%" onclick="saveData()">Guardar</button>
-        <button onclick="closeModal()" style="background:none; border:none; color:gray; width:100%; margin-top:10px; cursor:pointer;">Cancelar</button>
+        <button onclick="closeModal()" style="background:none; border:none; color:gray; width:100%; margin-top:10px;">Cancelar</button>
     </div>
 </div>
 
 <nav class="nav">
-    <button class="nav-btn active" onclick="showView('inicio', this)">
-        <img src="img/inicio.png" class="nav-icon"><span>Inicio</span>
-    </button>
-    <button class="nav-btn" onclick="showView('transacciones', this)">
-        <img src="img/transacciones.png" class="nav-icon"><span>Actividad</span>
-    </button>
-    <button class="nav-btn" onclick="showView('notificaciones', this)">
-        <img src="img/notificaciones.png" class="nav-icon"><span>Avisos</span>
-    </button>
-    <button class="nav-btn" onclick="showView('perfil', this)">
-        <img src="img/perfil.png" class="nav-icon"><span>Perfil</span>
-    </button>
+    <button class="nav-btn active" onclick="showView('inicio', this)"><img src="img/inicio.png" class="nav-icon">Inicio</button>
+    <button class="nav-btn" onclick="showView('transacciones', this)"><img src="img/transacciones.png" class="nav-icon">Actividad</button>
+    <button class="nav-btn" onclick="showView('notificaciones', this)"><img src="img/notificaciones.png" class="nav-icon">Avisos</button>
+    <button class="nav-btn" onclick="showView('perfil', this)"><img src="img/perfil.png" class="nav-icon">Perfil</button>
 </nav>
 
 <script>
-    // --- CONFIGURACIÓN FIREBASE ---
+    // --- CONFIGURACIÓN FIREBASE (Reemplaza con tus llaves si es necesario) ---
     const firebaseConfig = { apiKey: "AIzaSy...", authDomain: "zenfy-app.firebaseapp.com", projectId: "zenfy-app", storageBucket: "zenfy-app.appspot.com", messagingSenderId: "...", appId: "..." };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
@@ -165,11 +103,11 @@
     }
     function closeModal() { document.getElementById('modalTransaccion').style.display = 'none'; }
 
-    // --- FIREBASE SAVE ---
+    // --- LÓGICA DE DATOS ---
     async function saveData() {
         const monto = document.getElementById('monto').value;
         const desc = document.getElementById('descripcion').value;
-        if(!monto || !desc) return alert("Por favor completa los datos");
+        if(!monto || !desc) return alert("Completa los campos");
 
         await db.collection("movimientos").add({
             monto: parseFloat(monto),
@@ -177,25 +115,16 @@
             tipo: tipoActual,
             fecha: new Date()
         });
+        
         closeModal();
-        alert("¡Registro guardado!");
+        location.reload(); // Recarga simple para actualizar
     }
 
-    // --- CHART ---
+    // --- GRÁFICO ---
     const ctx = document.getElementById('mainChart').getContext('2d');
     new Chart(ctx, {
         type: 'line',
-        data: { 
-            labels: ['Lun', 'Mar', 'Mie', 'Jue', 'Vie'], 
-            datasets: [{ 
-                label: 'Flujo', 
-                data: [1200, 1900, 3000, 5000, 12450], 
-                borderColor: '#5ED4A4', 
-                tension: 0.4,
-                fill: true,
-                backgroundColor: 'rgba(94, 212, 164, 0.1)'
-            }] 
-        },
+        data: { labels: ['S1', 'S2', 'S3', 'S4'], datasets: [{ label: 'Flujo', data: [5000, 7000, 4500, 12450], borderColor: '#5ED4A4', backgroundColor: 'rgba(94, 212, 164, 0.1)', fill: true, tension: 0.4 }] },
         options: { plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { grid: { display: false } } } }
     });
 </script>
